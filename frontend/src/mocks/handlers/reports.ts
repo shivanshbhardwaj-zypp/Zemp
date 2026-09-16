@@ -94,7 +94,9 @@ function resolveScope(user: SeedUser, filters: { teamId?: string; adminId?: stri
     people = people.filter((p) => currentTeam(p.id)?.id === team.id);
   }
   if (filters.employeeId) {
-    const person = people.find((p) => p.id === filters.employeeId);
+    // You can always ask about your own work, even when you are not one of your team's staff
+    // (an admin manages a team without being a member of it).
+    const person = filters.employeeId === user.id ? user : people.find((p) => p.id === filters.employeeId);
     if (!person) throw new DomainError('USER_NOT_FOUND');
     people = [person];
     teams = teams.filter((t) => t.id === currentTeam(person.id)?.id);

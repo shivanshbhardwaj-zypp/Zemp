@@ -60,9 +60,13 @@ export class EmployeesController {
     return this.people.createEmployee(user, input, client, now);
   }
 
+  /**
+   * No `users.read` here on purpose: everyone may open their *own* profile, which is how the
+   * Profile screen loads. `loadPerson` decides — self, or someone within the viewer's scope;
+   * anyone else reads as not found.
+   */
   @Get(':id')
-  @RequirePermissions('users.read')
-  @ApiOperation({ summary: 'One person, if they are within the viewer’s scope' })
+  @ApiOperation({ summary: 'One person: yourself, or someone within your scope' })
   get(@CurrentUser() user: SeedUser, @Param('id', ParseUUIDPipe) id: string, @Now() now: Date): EmployeeDetail {
     return this.people.employee(user, id, now);
   }
