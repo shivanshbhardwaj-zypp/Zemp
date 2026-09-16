@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { ClipboardCheck, ClipboardPen, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -50,16 +50,27 @@ export function Dashboard() {
         title={TITLES[user.role]}
         description={description}
         actions={
-          can('tasks.create') && (
-            <Button asChild>
-              <Link href="/tasks?assign=1">
-                <Plus />
-                Assign Task
-              </Link>
-            </Button>
-          )
+          <>
+            {can('tasks.selfReport') && (
+              <Button asChild variant="secondary">
+                <Link href="/tasks?log=1">
+                  <ClipboardPen />
+                  Log completed work
+                </Link>
+              </Button>
+            )}
+            {can('tasks.create') && (
+              <Button asChild>
+                <Link href="/tasks?assign=1">
+                  <Plus />
+                  Assign Task
+                </Link>
+              </Button>
+            )}
+          </>
         }
       />
+      <ReviewBanner count={summary.data?.pendingReviews ?? 0} isEmployee={isEmployee} />
       <DashboardKpis role={user.role} summary={summary.data} loading={summary.isPending} />
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -119,6 +130,26 @@ export function Dashboard() {
         )}
       </div>
     </>
+  );
+}
+
+/** Self-reported work waiting on a decision — the reviewer's to make, or the author's to wait for. */
+function ReviewBanner({ count, isEmployee }: { count: number; isEmployee: boolean }) {
+  if (count === 0) return null;
+  return (
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-info-border bg-info-soft px-4 py-3">
+      <p className="flex items-center gap-2.5 text-sm text-info-ink">
+        <ClipboardCheck className="size-4 shrink-0" aria-hidden />
+        {isEmployee
+          ? `${plural(count, 'submission')} waiting for your reviewer's approval.`
+          : `${plural(count, 'submission')} waiting for your review.`}
+      </p>
+      {!isEmployee && (
+        <Button asChild size="sm" variant="secondary">
+          <Link href="/reviews">Review now</Link>
+        </Button>
+      )}
+    </div>
   );
 }
 

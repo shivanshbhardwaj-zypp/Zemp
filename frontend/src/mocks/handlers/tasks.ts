@@ -48,13 +48,13 @@ import {
 } from '../db';
 import { Paged, get, paginate, parse, patch, post, requirePermission } from '../http';
 
-function loadTask(actor: NamedActor, id: string) {
+export function loadTask(actor: NamedActor, id: string) {
   const task = findTask(id);
   if (!task || !canViewTask(actor, task)) throw new DomainError('TASK_NOT_FOUND');
   return task;
 }
 
-function applyPlan(req: Request, now: Date, actor: NamedActor, task: SeedTask, plan: TaskPlan) {
+export function applyPlan(req: Request, now: Date, actor: NamedActor, task: SeedTask, plan: TaskPlan) {
   const store = db();
   const changes = { ...plan.patch };
   delete changes.resetDeadlineReminders; // planner flag, not a stored task field

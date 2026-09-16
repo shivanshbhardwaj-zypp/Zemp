@@ -1,9 +1,20 @@
-import type { SessionUser } from '@zemp/shared';
+import { ROLE_PERMISSIONS, type SessionUser } from '@zemp/shared';
 import { describe, expect, it } from 'vitest';
 import { isActive, navigationFor } from './navigation';
 
-const user = (role: SessionUser['role']): SessionUser =>
-  ({ id: 'u1', name: 'Test User', email: 'test@zemp.test', role, jobRole: null, isActive: true, timeZone: 'UTC' }) as SessionUser;
+const user = (role: SessionUser['role']): SessionUser => ({
+  id: 'u1',
+  name: 'Test User',
+  email: 'test@zemp.test',
+  role,
+  permissions: [...ROLE_PERMISSIONS[role]],
+  jobTitle: null,
+  employeeCode: null,
+  team: null,
+  manager: null,
+  ownedTeams: [],
+  organization: { name: 'ZEMP Demo Co.', timezone: 'Asia/Kolkata' },
+});
 
 const hrefs = (role: SessionUser['role']) => {
   const nav = navigationFor(user(role));

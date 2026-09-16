@@ -1,7 +1,9 @@
 import {
+  REVIEW_STATUS_LABELS,
   RISK_LABELS,
   TASK_PRIORITY_LABELS,
   TASK_STATUS_LABELS,
+  type ReviewStatus,
   type RiskLevel,
   type TaskPriority,
   type TaskStatus,
@@ -9,7 +11,10 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  BadgeCheck,
   Ban,
+  Hourglass,
+  Undo2,
   CircleCheck,
   CircleDashed,
   CircleDot,
@@ -54,6 +59,21 @@ export function Badge({ tone = 'neutral', icon: Icon, children, className }: Bad
       {Icon && <Icon className="size-3.5" aria-hidden />}
       {children}
     </span>
+  );
+}
+
+const REVIEW: Record<ReviewStatus, { tone: Tone; icon: LucideIcon }> = {
+  PENDING: { tone: 'info', icon: Hourglass },
+  APPROVED: { tone: 'success', icon: BadgeCheck },
+  CHANGES_REQUESTED: { tone: 'warning', icon: Undo2 },
+};
+
+/** Where a piece of self-reported work stands with its reviewer. */
+export function ReviewBadge({ status, className }: { status: ReviewStatus; className?: string }) {
+  return (
+    <Badge tone={REVIEW[status].tone} icon={REVIEW[status].icon} className={className}>
+      {REVIEW_STATUS_LABELS[status]}
+    </Badge>
   );
 }
 

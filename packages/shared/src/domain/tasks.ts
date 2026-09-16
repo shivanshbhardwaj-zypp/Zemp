@@ -4,8 +4,10 @@ import {
   type AuditAction,
   type DeadlineState,
   type NotificationType,
+  type ReviewStatus,
   type RiskLevel,
   type TaskActivityType,
+  type TaskOrigin,
   type TaskPriority,
   type TaskStatus,
 } from '../enums.js';
@@ -14,10 +16,14 @@ import { dayKey, daysBetween } from '../time.js';
 import {
   canAssignTo,
   canManageTask,
+  canReviewFor,
+  canReviewTask,
   canViewTask,
   canWorkOnTask,
   type Actor,
   type AssigneeCandidate,
+  type PersonScope,
+  type ReviewerCandidate,
 } from './access.js';
 
 /** The task fields business rules need. Persistence layers map their rows onto this shape. */
@@ -35,6 +41,14 @@ export interface TaskRecord {
   dueAt: Date;
   completedAt: Date | null;
   createdAt: Date;
+  /** Manager-assigned work, or work an employee logged themselves for review. */
+  origin: TaskOrigin;
+  /** Self-reported work only: who was asked to review, and how that review ended. */
+  reviewerId: string | null;
+  reviewStatus: ReviewStatus | null;
+  reviewedAt: Date | null;
+  reviewNote: string | null;
+  evidenceUrl: string | null;
 }
 
 export interface NamedActor extends Actor {
@@ -48,6 +62,10 @@ export interface TaskPermissions {
   canComment: boolean;
   canCancel: boolean;
   canReopen: boolean;
+  /** Decide on a self-reported submission still awaiting review. */
+  canReview: boolean;
+  /** The author may revise and send a returned submission back. */
+  canResubmit: boolean;
 }
 
 export interface ActivityDraft {
@@ -81,6 +99,10 @@ export interface TaskPatch {
   dueAt?: Date;
   completedAt?: Date | null;
   completionNote?: string | null;
+  reviewStatus?: ReviewStatus | null;
+  reviewedAt?: Date | null;
+  reviewNote?: string | null;
+  evidenceUrl?: string | null;
   /** Deadline reminders are re-armed when the due date moves. */
   resetDeadlineReminders?: boolean;
 }
@@ -162,6 +184,8 @@ export function taskPermissions(actor: Actor, task: TaskRecord): TaskPermissions
     canComment: canViewTask(actor, task),
     canCancel: manager && open,
     canReopen: manager && task.status === 'COMPLETED',
+    canReview: task.reviewStatus === 'PENDING' && canReviewTask(actor, task),
+    canResubmit: task.reviewStatus === 'CHANGES_REQUESTED' && task.assigneeId === actor.id,
   };
 }
 
@@ -273,6 +297,12 @@ export function planCreateTask(args: {
       startAt: input.startAt ?? null,
       dueAt: input.dueAt,
       completedAt: null,
+      origin: 'ASSIGNED',
+      reviewerId: null,
+      reviewStatus: null,
+      reviewedAt: null,
+      reviewNote: null,
+      evidenceUrl: null,
     },
     activities: [activity('CREATED'), activity('ASSIGNED', null, assignee.id)],
     notifications: plan.notifications,
@@ -465,6 +495,182 @@ export function planReassign(args: {
   plan.audits.push({ action: 'TASK_REASSIGNED', metadata: { from: task.assigneeId, to: assignee.id, teamId } });
   notify(plan, actor, assignee.id, 'TASK_ASSIGNED', 'Task assigned to you', `${actor.name} assigned "${task.title}" to you.`);
   notify(plan, actor, task.assigneeId, 'TASK_REASSIGNED', 'Task reassigned', `"${task.title}" was reassigned to ${assignee.name}.`);
+  return plan;
+}
+
+// ── Self-reported work ─────────────────────────────────────────────────────
+
+/** How far back an employee may log work, so submissions stay close to the day they happened. */
+export const SELF_REPORT_MAX_AGE_DAYS = 30;
+
+export interface SelfReportInput {
+  title: string;
+  /** What was done — the reviewer reads this. */
+  description: string;
+  evidenceUrl?: string | null;
+  completedAt: Date;
+  priority?: TaskPriority;
+}
+
+function assertCompletedAt(completedAt: Date, now: Date) {
+  if (completedAt.getTime() > now.getTime()) {
+    throw new DomainError('INVALID_COMPLETION_DATE', 'You cannot log work finishing in the future.');
+  }
+  if (now.getTime() - completedAt.getTime() > SELF_REPORT_MAX_AGE_DAYS * 86_400_000) {
+    throw new DomainError(
+      'INVALID_COMPLETION_DATE',
+      `Log work within ${SELF_REPORT_MAX_AGE_DAYS} days of finishing it.`,
+    );
+  }
+}
+
+/**
+ * An employee logs work nobody assigned. It is recorded as completed but stays outside every
+ * workload and completion figure until the chosen reviewer approves it (see workload.ts), so
+ * self-reported numbers can never inflate a team's reports on the author's word alone.
+ */
+export function planSelfReport(args: {
+  actor: NamedActor;
+  author: PersonScope;
+  reviewer: ReviewerCandidate & { name: string };
+  input: SelfReportInput;
+  now: Date;
+}): NewTaskPlan {
+  const { actor, author, reviewer, input, now } = args;
+  if (actor.role !== 'EMPLOYEE' || author.id !== actor.id) throw new DomainError('FORBIDDEN');
+  if (!canReviewFor(reviewer, author)) throw new DomainError('REVIEWER_OUT_OF_SCOPE');
+  assertCompletedAt(input.completedAt, now);
+
+  const plan = emptyPlan();
+  notify(
+    plan,
+    actor,
+    reviewer.id,
+    'REVIEW_REQUESTED',
+    'Work submitted for review',
+    `${actor.name} logged "${input.title}" and asked you to review it.`,
+  );
+  return {
+    task: {
+      title: input.title,
+      description: input.description,
+      status: 'COMPLETED',
+      priority: input.priority ?? 'MEDIUM',
+      progress: 100,
+      assigneeId: actor.id,
+      assignorId: actor.id,
+      teamId: author.teamId,
+      startAt: null,
+      // Self-reported work has no deadline; the completion time keeps it out of the overdue paths.
+      dueAt: input.completedAt,
+      completedAt: input.completedAt,
+      origin: 'SELF_REPORTED',
+      reviewerId: reviewer.id,
+      reviewStatus: 'PENDING',
+      reviewedAt: null,
+      reviewNote: null,
+      evidenceUrl: input.evidenceUrl ?? null,
+    },
+    activities: [activity('CREATED'), activity('SUBMITTED_FOR_REVIEW', null, reviewer.id)],
+    notifications: plan.notifications,
+    audits: [
+      {
+        action: 'TASK_SELF_REPORTED',
+        metadata: { reviewerId: reviewer.id, completedAt: input.completedAt.toISOString() },
+      },
+    ],
+  };
+}
+
+export type ReviewDecision = 'APPROVE' | 'REQUEST_CHANGES';
+
+export function planReviewDecision(args: {
+  actor: NamedActor;
+  task: TaskRecord;
+  decision: ReviewDecision;
+  note?: string | null;
+  now: Date;
+}): TaskPlan {
+  const { actor, task, decision, now } = args;
+  const note = args.note?.trim() || null;
+  assertVisible(actor, task);
+  if (!canReviewTask(actor, task)) throw new DomainError('FORBIDDEN');
+  if (task.reviewStatus !== 'PENDING') throw new DomainError('REVIEW_NOT_PENDING');
+  if (decision === 'REQUEST_CHANGES' && !note) {
+    throw new DomainError('VALIDATION_ERROR', 'Tell the author what needs changing.');
+  }
+
+  const plan = emptyPlan();
+  const approved = decision === 'APPROVE';
+  plan.patch.reviewStatus = approved ? 'APPROVED' : 'CHANGES_REQUESTED';
+  plan.patch.reviewedAt = now;
+  plan.patch.reviewNote = note;
+  plan.activities.push(activity(approved ? 'REVIEW_APPROVED' : 'REVIEW_CHANGES_REQUESTED', 'PENDING', plan.patch.reviewStatus, note));
+  plan.audits.push({
+    action: approved ? 'TASK_REVIEW_APPROVED' : 'TASK_REVIEW_CHANGES_REQUESTED',
+    metadata: { authorId: task.assigneeId, note },
+  });
+  notify(
+    plan,
+    actor,
+    task.assigneeId,
+    approved ? 'REVIEW_APPROVED' : 'REVIEW_CHANGES_REQUESTED',
+    approved ? 'Work approved' : 'Changes requested',
+    approved
+      ? `${actor.name} approved "${task.title}".`
+      : `${actor.name} asked for changes on "${task.title}": ${note}`,
+  );
+  return plan;
+}
+
+/** The author revises returned work and sends it back to the same reviewer. */
+export function planResubmit(args: {
+  actor: NamedActor;
+  task: TaskRecord;
+  input: Partial<SelfReportInput>;
+  now: Date;
+}): TaskPlan {
+  const { actor, task, input, now } = args;
+  assertVisible(actor, task);
+  if (task.origin !== 'SELF_REPORTED' || task.assigneeId !== actor.id) throw new DomainError('FORBIDDEN');
+  if (task.reviewStatus !== 'CHANGES_REQUESTED') throw new DomainError('REVIEW_NOT_PENDING');
+
+  const plan = emptyPlan();
+  const changedFields: string[] = [];
+  if (input.title !== undefined && input.title !== task.title) {
+    plan.patch.title = input.title;
+    changedFields.push('title');
+  }
+  if (input.description !== undefined && input.description !== task.description) {
+    plan.patch.description = input.description;
+    changedFields.push('what was done');
+  }
+  if (input.evidenceUrl !== undefined && (input.evidenceUrl || null) !== task.evidenceUrl) {
+    plan.patch.evidenceUrl = input.evidenceUrl || null;
+    changedFields.push('link');
+  }
+  if (input.completedAt !== undefined && input.completedAt.getTime() !== task.completedAt?.getTime()) {
+    assertCompletedAt(input.completedAt, now);
+    plan.patch.completedAt = input.completedAt;
+    plan.patch.dueAt = input.completedAt;
+    changedFields.push('completion time');
+  }
+  if (changedFields.length) plan.activities.push(activity('UPDATED', null, changedFields.join(', ')));
+
+  plan.patch.reviewStatus = 'PENDING';
+  plan.patch.reviewedAt = null;
+  plan.patch.reviewNote = null;
+  plan.activities.push(activity('SUBMITTED_FOR_REVIEW', 'CHANGES_REQUESTED', task.reviewerId));
+  if (task.reviewerId) {
+    notify(
+      plan,
+      actor,
+      task.reviewerId,
+      'REVIEW_REQUESTED',
+      'Work resubmitted for review',
+      `${actor.name} revised "${plan.patch.title ?? task.title}" and asked you to review it again.`,
+    );
+  }
   return plan;
 }
 

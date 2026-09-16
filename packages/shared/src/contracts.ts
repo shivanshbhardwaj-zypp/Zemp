@@ -4,9 +4,11 @@ import type {
   AuditResult,
   DeadlineState,
   NotificationType,
+  ReviewStatus,
   RiskLevel,
   SystemRole,
   TaskActivityType,
+  TaskOrigin,
   TaskPriority,
   TaskStatus,
 } from './enums.js';
@@ -119,6 +121,19 @@ export interface TaskSummary {
   /** Status changes this user may make right now — the UI never offers anything else. */
   allowedTransitions: TaskStatus[];
   permissions: TaskPermissions;
+  origin: TaskOrigin;
+  /** Optional link the author gave as evidence of self-reported work. */
+  evidenceUrl: string | null;
+  /** Null for assigned work. */
+  review: TaskReview | null;
+}
+
+export interface TaskReview {
+  status: ReviewStatus;
+  reviewer: UserRef | null;
+  reviewedAt: string | null;
+  /** The reviewer's note — required when changes are requested. */
+  note: string | null;
 }
 
 export interface TaskDetail extends TaskSummary {
@@ -156,6 +171,13 @@ export interface TaskCommentEntry {
 export interface AssignableUser extends UserRef {
   team: TeamRef | null;
   ownedTeams: TeamRef[];
+}
+
+/** Someone an employee may send their work to for review. */
+export interface ReviewerOption extends UserRef {
+  team: TeamRef | null;
+  /** Why they can review: they own the employee's team, or they oversee the organization. */
+  relationship: 'TEAM_ADMIN' | 'SUPER_ADMIN';
 }
 
 // ── Progress ───────────────────────────────────────────────────────────────
@@ -287,6 +309,8 @@ export interface DashboardSummary {
   atRiskTasks: number;
   /** People in scope; null on an employee's own dashboard. */
   people: { total: number; active: number } | null;
+  /** Self-reported submissions waiting on this viewer (reviewers) or on their reviewer (employees). */
+  pendingReviews: number;
 }
 
 export interface DashboardAttention {

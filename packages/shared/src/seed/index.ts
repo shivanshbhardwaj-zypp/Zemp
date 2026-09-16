@@ -16,6 +16,7 @@ import {
   ADMIN_TASKS,
   BLOCK_REASONS,
   COMMENT_PAIRS,
+  SELF_REPORTS,
   COMPLETION_NOTES,
   DESCRIPTIONS,
   INACTIVE_EMPLOYEE,
@@ -341,6 +342,12 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
       dueAt: p.dueAt,
       completedAt: null,
       createdAt: p.createdAt,
+      origin: 'ASSIGNED',
+      reviewerId: null,
+      reviewStatus: null,
+      reviewedAt: null,
+      reviewNote: null,
+      evidenceUrl: null,
       completionNote: null,
       createdById: p.assignor.id,
       updatedById: p.assignor.id,
@@ -514,6 +521,101 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
     }
   }
 
+  // ── Self-reported work (employee-logged, awaiting or past review) ────────
+  const selfReport = (p: {
+    author: SeedUser;
+    reviewer: SeedUser;
+    title: string;
+    description: string;
+    evidenceUrl: string | null;
+    completedAt: Date;
+    decision?: { approved: boolean; note: string | null };
+  }) => {
+    const submittedAt = after(p.completedAt, int(20, 90) * 60_000);
+    const team = teams.find((t) => (membersOf.get(t.id) ?? []).some((m) => m.id === p.author.id));
+    const task: SeedTask = {
+      id: id(),
+      title: p.title,
+      description: p.description,
+      status: 'COMPLETED',
+      priority: 'MEDIUM',
+      progress: 100,
+      assigneeId: p.author.id,
+      assignorId: p.author.id,
+      teamId: team?.id ?? null,
+      startAt: null,
+      dueAt: p.completedAt,
+      completedAt: p.completedAt,
+      createdAt: submittedAt,
+      origin: 'SELF_REPORTED',
+      reviewerId: p.reviewer.id,
+      reviewStatus: 'PENDING',
+      reviewedAt: null,
+      reviewNote: null,
+      evidenceUrl: p.evidenceUrl,
+      completionNote: null,
+      createdById: p.author.id,
+      updatedById: p.author.id,
+      updatedAt: submittedAt,
+    };
+    tasks.push(task);
+    log(task, p.author.id, 'CREATED', submittedAt);
+    log(task, p.author.id, 'SUBMITTED_FOR_REVIEW', submittedAt, null, p.reviewer.id);
+    audit(p.author.id, 'TASK_SELF_REPORTED', 'TASK', task.id, submittedAt, {
+      reviewerId: p.reviewer.id,
+      completedAt: p.completedAt.toISOString(),
+    });
+    notify(
+      p.reviewer.id,
+      'REVIEW_REQUESTED',
+      'Work submitted for review',
+      `${p.author.name} logged "${task.title}" and asked you to review it.`,
+      task.id,
+      submittedAt,
+    );
+    if (p.decision) {
+      const decidedAt = after(submittedAt, int(2, 20) * HOUR_MS);
+      const { approved, note } = p.decision;
+      task.reviewStatus = approved ? 'APPROVED' : 'CHANGES_REQUESTED';
+      task.reviewedAt = decidedAt;
+      task.reviewNote = note;
+      log(task, p.reviewer.id, approved ? 'REVIEW_APPROVED' : 'REVIEW_CHANGES_REQUESTED', decidedAt, 'PENDING', task.reviewStatus, note);
+      audit(p.reviewer.id, approved ? 'TASK_REVIEW_APPROVED' : 'TASK_REVIEW_CHANGES_REQUESTED', 'TASK', task.id, decidedAt, {
+        authorId: p.author.id,
+        note,
+      });
+      notify(
+        p.author.id,
+        approved ? 'REVIEW_APPROVED' : 'REVIEW_CHANGES_REQUESTED',
+        approved ? 'Work approved' : 'Changes requested',
+        approved
+          ? `${p.reviewer.name} approved "${task.title}".`
+          : `${p.reviewer.name} asked for changes on "${task.title}": ${note}`,
+        task.id,
+        decidedAt,
+      );
+    }
+    return task;
+  };
+
+  for (const [index, sample] of SELF_REPORTS.entries()) {
+    const team = teams[index % teams.length]!;
+    const author = (membersOf.get(team.id) ?? []).find((m) => m.isActive);
+    if (!author) continue;
+    const admin = adminOf.get(team.id);
+    // Alternate between the team admin and the Super Admin, so both review queues have work.
+    const reviewer = sample.toSuperAdmin || !admin ? john : admin;
+    selfReport({
+      author,
+      reviewer,
+      title: sample.title,
+      description: sample.description,
+      evidenceUrl: sample.evidenceUrl,
+      completedAt: at(sample.dayOffset, sample.time),
+      decision: sample.decision,
+    });
+  }
+
   // ── Deadline reminders ───────────────────────────────────────────────────
   for (const task of tasks) {
     if (task.status !== 'TODO' && task.status !== 'IN_PROGRESS' && task.status !== 'BLOCKED') continue;
@@ -589,7 +691,22 @@ function buildSnapshots(args: {
         completedAt = status === 'COMPLETED' ? event.createdAt : null;
       }
     }
-    return { status, progress, completedAt, dueAt: task.dueAt, startAt: task.startAt, createdAt: task.createdAt };
+    // Self-reported work has no status history: it is logged complete, at the time it was done.
+    if (task.origin === 'SELF_REPORTED' && task.completedAt && task.completedAt <= at) {
+      status = 'COMPLETED';
+      progress = 100;
+      completedAt = task.completedAt;
+    }
+    return {
+      status,
+      progress,
+      completedAt,
+      dueAt: task.dueAt,
+      startAt: task.startAt,
+      createdAt: task.createdAt,
+      origin: task.origin,
+      reviewStatus: task.reviewStatus,
+    };
   };
 
   const snapshots: SeedSnapshot[] = [];

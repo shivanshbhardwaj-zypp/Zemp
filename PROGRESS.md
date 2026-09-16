@@ -20,6 +20,22 @@ Read this first (CLAUDE.md §2, §40). ZEMP is a separate project from `../YT&IG
 - **Git**: commit after each phase passes verification (repo-local identity).
 - Product renamed BompVP → ZEMP in the spec docs; `requirements(1).md` renamed `requirements.md`.
 
+## Scope addition — self-reported work with review (approved by the user, 16 Sep 2026)
+
+"Approvals" sits in requirements §39 (V0.2+ candidates) and §38 requires separate approval to add it; the
+user asked for it explicitly, so V0.1 now includes it. Decisions they confirmed:
+
+- **An employee logs work nobody assigned** and chooses the reviewer: the admin who owns their team, or a
+  Super Admin. Only those two may be chosen, enforced server-side (`canReviewFor`).
+- **It counts only once approved.** `countsTowardMetrics` keeps `PENDING` / `CHANGES_REQUESTED` submissions
+  out of `summarizeWorkload`, so nobody can move their own or their team's numbers unilaterally.
+- **Evidence is a note plus an optional http(s) link** — V0.1 has no file storage; uploads would need one.
+- **Completed work only** (not work in progress), logged within 30 days of finishing it.
+- Modelled on the existing Task (`origin`, `reviewerId`, `reviewStatus`, `reviewedAt`, `reviewNote`,
+  `evidenceUrl`) rather than a second entity, so it flows through task lists, activity, audit and reports.
+- Flow: submit → reviewer approves (counts) or asks for changes with a required note → author revises and
+  resubmits. Only the chosen reviewer or a Super Admin decides; never the author.
+
 ## Decisions (implementation, low-risk defaults — revisit if the user disagrees)
 
 - **Admins** view and assign work in teams they own; creating, editing, moving and deactivating people is Super Admin only (requirements §3.1 vs §3.2). One permission-map change grants more.
@@ -60,6 +76,8 @@ Toolchain: Node 24.19, pnpm 12.3.4, TypeScript 6.0.3 (TS 7 unsupported by typesc
 - [x] Notifications page · Profile · Settings (account, organization, roles matrix) · Audit log
 - [x] Forgot/reset password pages · not-found page
 - [x] ESLint flat config + lint (0 errors, 0 warnings), frontend tests (Vitest/RTL, 14) + shared (33), `next build` (21 routes), responsive + role spot checks
+- [x] Self-reported work: employee logs completed work and picks a reviewer · reviewer queue at `/reviews`
+      (approve / ask for changes) · revise and resubmit · dashboard banner · notifications, activity and audit
 - Chart palette validated with the dataviz validator: Completed `#D0432B`, Assigned `#5D78D6` (all checks pass).
 
 ### Fixes during Phase A verification

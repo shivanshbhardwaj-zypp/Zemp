@@ -1,19 +1,22 @@
 'use client';
 
 import type { TaskDetail } from '@zemp/shared';
-import { Clock, Pencil, SearchX, UserRoundPen } from 'lucide-react';
+import { Check, Clock, ExternalLink, Pencil, SearchX, Undo2, UserRoundPen } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { LogWorkDialog } from '@/components/reviews/LogWorkDialog';
 import { Breadcrumbs } from '@/components/shared/PageHeader';
 import { EmptyState, ErrorState } from '@/components/shared/States';
 import { UserAvatar } from '@/components/ui/Avatar';
-import { Badge, PriorityLabel, StatusBadge } from '@/components/ui/Badge';
+import { Badge, PriorityLabel, ReviewBadge, StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
+import { Field } from '@/components/ui/Field';
+import { Input, Textarea } from '@/components/ui/Input';
 import { ProgressBar, toneForTask } from '@/components/ui/ProgressBar';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { useReviewDecision } from '@/hooks/useReviews';
 import { useTask, useUpdateProgress } from '@/hooks/useTasks';
 import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
@@ -61,6 +64,7 @@ export function TaskDetailPanel({ taskId, variant }: { taskId: string; variant: 
     return (
       <div className="grid gap-6 p-6">
         <TaskHeader task={t} variant="sheet" />
+        <ReviewSection task={t} />
         <ProgressSection task={t} />
         <StatusActions task={t} />
         <DetailsList task={t} />
@@ -77,6 +81,7 @@ export function TaskDetailPanel({ taskId, variant }: { taskId: string; variant: 
         <div className="grid min-w-0 content-start gap-6">
           <Card className="grid gap-6 p-6">
             <TaskHeader task={t} variant="page" />
+            <ReviewSection task={t} />
             <Description task={t} />
             <ProgressSection task={t} />
             <StatusActions task={t} />
@@ -130,6 +135,123 @@ function TaskHeader({ task, variant }: { task: TaskDetail; variant: 'sheet' | 'p
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Self-reported work: where the review stands, the evidence link, and whichever action belongs to
+ * the viewer — decide (reviewer) or revise (author). The API decides again on every call.
+ */
+function ReviewSection({ task }: { task: TaskDetail }) {
+  const timeZone = useTimeZone();
+  const decide = useReviewDecision(task.id);
+  const [revising, setRevising] = useState(false);
+  const [askingChanges, setAskingChanges] = useState(false);
+  const [note, setNote] = useState('');
+  const review = task.review;
+  if (!review) return null;
+
+  const approve = async () => {
+    try {
+      await decide.mutateAsync({ decision: 'APPROVE' });
+      toast.success('Work approved.');
+    } catch {
+      toast.error('That could not be approved. Try again.');
+    }
+  };
+
+  const requestChanges = async () => {
+    if (!note.trim()) return;
+    try {
+      await decide.mutateAsync({ decision: 'REQUEST_CHANGES', note: note.trim() });
+      toast.success('Sent back to the author.');
+      setNote('');
+      setAskingChanges(false);
+    } catch {
+      toast.error('That could not be sent. Try again.');
+    }
+  };
+
+  return (
+    <section className="rounded-lg border border-border-subtle bg-surface-subtle p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink">Self-reported work</h3>
+        <ReviewBadge status={review.status} />
+      </div>
+      <p className="mt-1.5 text-meta text-ink-muted">
+        {review.status === 'PENDING'
+          ? `Waiting for ${review.reviewer?.name ?? 'a reviewer'}. It counts towards progress once approved.`
+          : `${review.status === 'APPROVED' ? 'Approved' : 'Returned'} by ${review.reviewer?.name ?? 'a reviewer'}${
+              review.reviewedAt ? ` · ${formatDateTime(review.reviewedAt, timeZone)}` : ''
+            }`}
+      </p>
+
+      {review.note && (
+        <p className="mt-2 rounded-md bg-surface px-3 py-2 text-sm text-ink-secondary">
+          <span className="font-medium text-ink">Reviewer&apos;s note:</span> {review.note}
+        </p>
+      )}
+
+      {task.evidenceUrl && (
+        <a
+          href={task.evidenceUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="mt-3 inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-primary-ink hover:underline"
+        >
+          <ExternalLink className="size-4 shrink-0" aria-hidden />
+          <span className="truncate">{task.evidenceUrl}</span>
+        </a>
+      )}
+
+      {task.permissions.canReview && !askingChanges && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button size="sm" onClick={approve} loading={decide.isPending}>
+            <Check />
+            Approve
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setAskingChanges(true)} disabled={decide.isPending}>
+            <Undo2 />
+            Ask for changes
+          </Button>
+        </div>
+      )}
+
+      {task.permissions.canReview && askingChanges && (
+        <div className="mt-4 grid gap-2">
+          <Field label="What needs changing?">
+            {(control) => (
+              <Textarea
+                {...control}
+                rows={3}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="e.g. Add a note on where the numbers come from."
+                autoFocus
+              />
+            )}
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={requestChanges} loading={decide.isPending} disabled={!note.trim()}>
+              Send back
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setAskingChanges(false)} disabled={decide.isPending}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {task.permissions.canResubmit && (
+        <div className="mt-4">
+          <Button size="sm" onClick={() => setRevising(true)}>
+            <Undo2 />
+            Revise and resubmit
+          </Button>
+          <LogWorkDialog open={revising} onOpenChange={setRevising} task={task} />
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -168,6 +168,54 @@ export const COMPLETION_NOTES = [
   'Finished; follow-ups logged separately.',
 ];
 
+/** Work employees logged themselves, for the review queue (demo data only). */
+export const SELF_REPORTS: ReadonlyArray<{
+  title: string;
+  description: string;
+  evidenceUrl: string | null;
+  dayOffset: number;
+  time: string;
+  toSuperAdmin: boolean;
+  decision?: { approved: boolean; note: string | null };
+}> = [
+  {
+    title: 'Cleaned up the shared asset folder',
+    description:
+      'Nothing was assigned today, so I sorted the shared drive: archived last quarter’s files, fixed the naming, and wrote a short README for the team.',
+    evidenceUrl: 'https://example.com/drive/shared-assets',
+    dayOffset: 0,
+    time: '11:20',
+    toSuperAdmin: false,
+  },
+  {
+    title: 'Drafted an onboarding checklist for new joiners',
+    description:
+      'Wrote a one-page checklist covering accounts, tools and the first-week intro calls, based on what was missing when I joined.',
+    evidenceUrl: 'https://example.com/docs/onboarding-checklist',
+    dayOffset: -1,
+    time: '16:05',
+    toSuperAdmin: true,
+  },
+  {
+    title: 'Fixed the broken links on the help page',
+    description: 'Found nine dead links while reading the help centre and corrected them.',
+    evidenceUrl: null,
+    dayOffset: -2,
+    time: '14:40',
+    toSuperAdmin: false,
+    decision: { approved: true, note: 'Nice catch — thanks for picking this up.' },
+  },
+  {
+    title: 'Reorganised the weekly report template',
+    description: 'Rebuilt the template so the numbers pull through automatically instead of being typed in each week.',
+    evidenceUrl: 'https://example.com/docs/weekly-report-template',
+    dayOffset: -3,
+    time: '10:15',
+    toSuperAdmin: false,
+    decision: { approved: false, note: 'Add a note on where the numbers come from, then resubmit.' },
+  },
+];
+
 export const COMMENT_PAIRS: ReadonlyArray<readonly [assignee: string, assignor: string]> = [
   ['Started on this — I will share an update by end of day.', 'Thanks, keep me posted.'],
   ['Halfway there. Should wrap up tomorrow.', 'Great progress.'],

@@ -1,0 +1,13 @@
+import type { Metadata } from 'next';
+import { Suspense } from 'react';
+import { ReviewsPage } from '@/components/reviews/ReviewsPage';
+
+export const metadata: Metadata = { title: 'Reviews' };
+
+export default function Page() {
+  return (
+    <Suspense>
+      <ReviewsPage />
+    </Suspense>
+  );
+}

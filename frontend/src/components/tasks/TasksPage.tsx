@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS, listTasksQuerySchema, type TaskPriority, type TaskSummary } from '@zemp/shared';
-import { Plus, X } from 'lucide-react';
+import { ClipboardPen, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -16,6 +16,7 @@ import { plural } from '@/lib/format';
 import { useCan, useUser } from '@/lib/session';
 import { AssignTaskDialog } from './AssignTaskDialog';
 import { TaskActionsProvider } from './TaskActions';
+import { LogWorkDialog } from '@/components/reviews/LogWorkDialog';
 import { TaskCards } from './TaskCards';
 import { TaskFilters } from './TaskFilters';
 import { TaskSheet } from './TaskSheet';
@@ -54,13 +55,25 @@ export function TasksPage() {
         title={isEmployee ? 'My Tasks' : 'Tasks'}
         description={isEmployee ? 'Your assigned work, progress and deadlines' : 'Manage assigned work and deadlines'}
         actions={
-          can('tasks.create') && (
-            <Button onClick={() => setParams({ assign: 1 }, { resetPage: false })}>
-              <Plus />
-              Assign Task
-            </Button>
-          )
+          <>
+            {can('tasks.selfReport') && (
+              <Button variant="secondary" onClick={() => setParams({ log: 1 }, { resetPage: false })}>
+                <ClipboardPen />
+                Log completed work
+              </Button>
+            )}
+            {can('tasks.create') && (
+              <Button onClick={() => setParams({ assign: 1 }, { resetPage: false })}>
+                <Plus />
+                Assign Task
+              </Button>
+            )}
+          </>
         }
+      />
+      <LogWorkDialog
+        open={params.get('log') === '1'}
+        onOpenChange={(open) => !open && setParams({ log: null }, { resetPage: false })}
       />
       <TaskFilters query={query} onChange={setParams} showTeam={!isEmployee} />
       {selected.size > 0 && tasks.data && (

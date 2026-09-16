@@ -1,4 +1,4 @@
-import type { SystemRole } from '../enums.js';
+import type { SystemRole, TaskOrigin } from '../enums.js';
 
 /**
  * Server-side scope rules (requirements §18): system role + team scope + resource ownership.
@@ -53,6 +53,37 @@ export function canAssignTo(actor: Actor, candidate: AssigneeCandidate): boolean
   if (candidate.id === actor.id || candidate.role === 'SUPER_ADMIN') return false;
   if (actor.role === 'SUPER_ADMIN') return true;
   return actor.role === 'ADMIN' && candidate.role === 'EMPLOYEE' && ownsTeam(actor, candidate.teamId);
+}
+
+/** A self-reported task and the reviewer its author chose. */
+export interface ReviewScope extends TaskScope {
+  origin: TaskOrigin;
+  reviewerId: string | null;
+}
+
+/** A person an employee may send work to for review. */
+export interface ReviewerCandidate {
+  id: string;
+  role: SystemRole;
+  isActive: boolean;
+  ownedTeamIds: readonly string[];
+}
+
+/**
+ * Only the reviewer the employee chose decides — plus a Super Admin, who oversees the organization.
+ * Nobody reviews their own work, and assigned tasks are never reviewed this way.
+ */
+export function canReviewTask(actor: Actor, task: ReviewScope): boolean {
+  if (task.origin !== 'SELF_REPORTED' || task.assigneeId === actor.id) return false;
+  if (actor.role === 'SUPER_ADMIN') return true;
+  return actor.role === 'ADMIN' && task.reviewerId === actor.id;
+}
+
+/** An employee may ask a Super Admin, or the admin who owns their team — never themselves. */
+export function canReviewFor(reviewer: ReviewerCandidate, employee: PersonScope): boolean {
+  if (!reviewer.isActive || reviewer.id === employee.id) return false;
+  if (reviewer.role === 'SUPER_ADMIN') return true;
+  return reviewer.role === 'ADMIN' && ownsTeam(reviewer, employee.teamId);
 }
 
 export function canViewPerson(actor: Actor, person: PersonScope): boolean {

@@ -3,6 +3,7 @@ import {
   AUDIT_ACTIONS,
   AUDIT_RESOURCE_TYPES,
   AUDIT_RESULTS,
+  REVIEW_STATUSES,
   TASK_PRIORITIES,
   TASK_STATUSES,
 } from './enums.js';
@@ -126,6 +127,48 @@ export const changeStatusSchema = z.object({
 });
 
 export const createCommentSchema = z.object({ body: text('A comment', 1, 2000) });
+
+// ── Self-reported work & review ────────────────────────────────────────────
+
+/** Only http(s), so a stored link can never carry a `javascript:` or `data:` payload. */
+const evidenceUrlSchema = z
+  .string()
+  .trim()
+  .max(2000, 'That link is too long')
+  .pipe(z.url({ error: 'Enter a valid link' }))
+  .refine((v) => /^https?:\/\//i.test(v), 'Use a link starting with http:// or https://');
+
+const selfReportFields = {
+  title: text('Title', 3, 200),
+  description: text('What you did', 10, 5000),
+  evidenceUrl: evidenceUrlSchema.optional(),
+  completedAt: dateTimeSchema,
+};
+
+export const selfReportSchema = z.object({ ...selfReportFields, reviewerId: idSchema });
+
+export const resubmitSelfReportSchema = z
+  .object({
+    title: selfReportFields.title.optional(),
+    description: selfReportFields.description.optional(),
+    evidenceUrl: evidenceUrlSchema.nullable().optional(),
+    completedAt: dateTimeSchema.optional(),
+  })
+  .refine(hasAnyField, anyField);
+
+export const reviewDecisionSchema = z
+  .object({
+    decision: z.enum(['APPROVE', 'REQUEST_CHANGES']),
+    note: z.string().trim().max(2000).optional(),
+  })
+  .refine((v) => v.decision === 'APPROVE' || Boolean(v.note), {
+    message: 'Tell the author what needs changing',
+    path: ['note'],
+  });
+
+export const listReviewsQuerySchema = pageQuerySchema.extend({
+  status: z.enum(REVIEW_STATUSES).default('PENDING'),
+});
 
 export const TASK_SORT_FIELDS = ['dueAt', 'createdAt', 'updatedAt', 'priority', 'status', 'progress', 'title'] as const;
 export const DEADLINE_FILTERS = ['OVERDUE', 'DUE_TODAY', 'DUE_TOMORROW', 'UPCOMING'] as const;
@@ -286,6 +329,10 @@ export type PasswordResetConfirmInput = z.output<typeof passwordResetConfirmSche
 export type CreateTaskInput = z.output<typeof createTaskSchema>;
 export type UpdateTaskInput = z.output<typeof updateTaskSchema>;
 export type ReassignTaskInput = z.output<typeof reassignTaskSchema>;
+export type SelfReportInputDto = z.output<typeof selfReportSchema>;
+export type ResubmitSelfReportInput = z.output<typeof resubmitSelfReportSchema>;
+export type ReviewDecisionInput = z.output<typeof reviewDecisionSchema>;
+export type ListReviewsQuery = z.output<typeof listReviewsQuerySchema>;
 export type UpdateProgressInput = z.output<typeof updateProgressSchema>;
 export type ChangeStatusInput = z.output<typeof changeStatusSchema>;
 export type CreateCommentInput = z.output<typeof createCommentSchema>;

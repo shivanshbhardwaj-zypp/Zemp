@@ -7,9 +7,11 @@ import type {
   UserRef,
 } from '../contracts.js';
 import {
+  REVIEW_STATUS_LABELS,
   TASK_PRIORITY_LABELS,
   TASK_STATUS_LABELS,
   type AuditAction,
+  type ReviewStatus,
   type RiskLevel,
   type TaskActivityType,
   type TaskPriority,
@@ -38,6 +40,8 @@ export function toTaskSummary(args: {
   assignee: UserRef;
   assignor: UserRef;
   team: TeamRef | null;
+  /** The chosen reviewer of self-reported work, when there is one. */
+  reviewer?: UserRef | null;
   now: Date;
   timeZone: string;
 }): TaskSummary {
@@ -61,6 +65,17 @@ export function toTaskSummary(args: {
     risk: taskRisk(task, now),
     allowedTransitions: allowedTransitions(actor, task),
     permissions: taskPermissions(actor, task),
+    origin: task.origin,
+    evidenceUrl: task.evidenceUrl,
+    review:
+      task.reviewStatus === null
+        ? null
+        : {
+            status: task.reviewStatus,
+            reviewer: args.reviewer ?? null,
+            reviewedAt: task.reviewedAt?.toISOString() ?? null,
+            note: task.reviewNote,
+          },
   };
 }
 
@@ -162,6 +177,11 @@ export function activityLabels(
       case 'ASSIGNED':
       case 'REASSIGNED':
         return lookups.user(value) ?? 'Unknown person';
+      case 'SUBMITTED_FOR_REVIEW':
+        return lookups.user(value) ?? REVIEW_STATUS_LABELS[value as ReviewStatus] ?? value;
+      case 'REVIEW_APPROVED':
+      case 'REVIEW_CHANGES_REQUESTED':
+        return REVIEW_STATUS_LABELS[value as ReviewStatus] ?? value;
       case 'STATUS_CHANGED':
       case 'COMPLETED':
       case 'CANCELLED':
@@ -227,6 +247,12 @@ export function auditSummary(
       return `Changed the due date of ${task()}`;
     case 'TASK_CANCELLED':
       return `Cancelled ${task()}`;
+    case 'TASK_SELF_REPORTED':
+      return `Logged ${task()} for review by ${person(text('reviewerId'))}`;
+    case 'TASK_REVIEW_APPROVED':
+      return `Approved ${task()} by ${person(text('authorId'))}`;
+    case 'TASK_REVIEW_CHANGES_REQUESTED':
+      return `Requested changes on ${task()} by ${person(text('authorId'))}`;
     case 'SETTINGS_UPDATED':
       return 'Updated organization settings';
   }

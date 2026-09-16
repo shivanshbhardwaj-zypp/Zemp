@@ -133,12 +133,14 @@ export const visibleTasks = (actor: NamedActor) => db().tasks.filter((t) => canV
 
 export function summarizeTask(task: SeedTask, actor: NamedActor, now: Date): TaskSummary {
   const team = task.teamId ? findTeam(task.teamId) : undefined;
+  const reviewer = task.reviewerId ? findUser(task.reviewerId) : undefined;
   return toTaskSummary({
     task,
     actor,
     assignee: userRef(findUser(task.assigneeId)!),
     assignor: userRef(findUser(task.assignorId)!),
     team: team ? teamRef(team) : null,
+    reviewer: reviewer ? userRef(reviewer) : null,
     now,
     timeZone: zone(),
   });

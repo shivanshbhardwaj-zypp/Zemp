@@ -5,6 +5,7 @@ import {
   activityFeedQuerySchema,
   addDays,
   byRiskThenName,
+  canReviewTask,
   canViewTask,
   completionRate,
   countInDay,
@@ -170,6 +171,12 @@ get('/dashboard/summary', ({ user, now }) => {
             total: scope.people.filter((p) => p.role === 'EMPLOYEE').length,
             active: scope.people.filter((p) => p.role === 'EMPLOYEE' && p.isActive).length,
           },
+    // Reviewers see what awaits their decision; employees see their own submissions still waiting.
+    pendingReviews: db().tasks.filter(
+      (t) =>
+        t.reviewStatus === 'PENDING' &&
+        (user.role === 'EMPLOYEE' ? t.assigneeId === user.id : canReviewTask(actorFor(user), t)),
+    ).length,
   } satisfies DashboardSummary;
 });
 

@@ -2,6 +2,7 @@ import type { SessionUser } from '@zemp/shared';
 import {
   Bell,
   ChartColumn,
+  ClipboardCheck,
   LayoutDashboard,
   ListChecks,
   ScrollText,
@@ -32,6 +33,7 @@ export interface Navigation {
 const notifications: NavItem = { href: '/notifications', label: 'Notifications', icon: Bell };
 const settings: NavItem = { href: '/settings', label: 'Settings', icon: Settings, activePrefixes: ['/settings', '/profile'] };
 const reports: NavItem = { href: '/reports', label: 'Reports', icon: ChartColumn };
+const reviews: NavItem = { href: '/reviews', label: 'Reviews', icon: ClipboardCheck };
 
 /**
  * Role navigation from Frontend.md §124. Unavailable modules are omitted rather than disabled.
@@ -46,6 +48,7 @@ export function navigationFor(user: SessionUser): Navigation {
           { href: '/tasks', label: 'Tasks', icon: ListChecks },
           { href: '/employees', label: 'Employees', icon: Users, activePrefixes: ['/employees', '/organization'] },
           { href: '/teams', label: 'Teams', icon: UsersRound },
+          reviews,
           reports,
         ],
         administration: [
@@ -60,6 +63,7 @@ export function navigationFor(user: SessionUser): Navigation {
           { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
           { href: '/tasks', label: 'Tasks', icon: ListChecks },
           { href: '/teams', label: 'My Team', icon: UsersRound, activePrefixes: ['/teams', '/employees'] },
+          reviews,
           reports,
         ],
         administration: [],

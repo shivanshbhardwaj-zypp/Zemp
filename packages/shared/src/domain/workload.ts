@@ -4,7 +4,7 @@ import { isOpenStatus, type TaskRecord } from './tasks.js';
 
 export type WorkloadTask = Pick<
   TaskRecord,
-  'status' | 'progress' | 'dueAt' | 'startAt' | 'completedAt' | 'createdAt'
+  'status' | 'progress' | 'dueAt' | 'startAt' | 'completedAt' | 'createdAt' | 'origin' | 'reviewStatus'
 >;
 
 export interface WorkloadSummary {
@@ -26,12 +26,20 @@ export const completionRate = (completed: number, total: number) =>
   total === 0 ? 0 : round2((completed / total) * 100);
 
 /**
+ * Self-reported work counts only once its reviewer approves it, so nobody can move their own
+ * numbers (or their team's) by logging work. Assigned work always counts.
+ */
+export function countsTowardMetrics(task: Pick<WorkloadTask, 'origin' | 'reviewStatus'>): boolean {
+  return task.origin !== 'SELF_REPORTED' || task.reviewStatus === 'APPROVED';
+}
+
+/**
  * Active workload on a day: every non-cancelled task that is still open, not yet due, or was
  * completed that day or later. Completed work whose deadline has passed drops out, so completion
  * rates describe current commitments instead of trending to 100% over all history.
  */
 export function isInWorkload(task: WorkloadTask, dayStart: Date): boolean {
-  if (task.status === 'CANCELLED') return false;
+  if (task.status === 'CANCELLED' || !countsTowardMetrics(task)) return false;
   return (
     isOpenStatus(task.status) ||
     task.dueAt >= dayStart ||

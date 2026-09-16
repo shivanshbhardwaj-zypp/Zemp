@@ -19,6 +19,8 @@ function batch(completed: number, completedAt: Date, total = 30): WorkloadTask[]
     createdAt: assigned,
     dueAt: deadline,
     completedAt: i < completed ? completedAt : null,
+    origin: 'ASSIGNED',
+    reviewStatus: null,
   }));
 }
 
@@ -51,6 +53,41 @@ describe('requirements §10 — 30 tasks × 3 employees, 5-day deadline', () => 
   });
 });
 
+describe('self-reported work in metrics', () => {
+  const now = new Date('2026-09-14T06:30:00Z');
+  const logged = (reviewStatus: WorkloadTask['reviewStatus']): WorkloadTask => ({
+    status: 'COMPLETED',
+    progress: 100,
+    startAt: null,
+    createdAt: now,
+    dueAt: now,
+    completedAt: now,
+    origin: 'SELF_REPORTED',
+    reviewStatus,
+  });
+  const assignedOpen: WorkloadTask = {
+    status: 'IN_PROGRESS',
+    progress: 20,
+    startAt: assigned,
+    createdAt: assigned,
+    dueAt: deadline,
+    completedAt: null,
+    origin: 'ASSIGNED',
+    reviewStatus: null,
+  };
+
+  it('counts a submission only once it is approved', () => {
+    expect(summarizeWorkload([assignedOpen, logged('PENDING')], now, TZ)).toMatchObject({ total: 1, completed: 0 });
+    expect(summarizeWorkload([assignedOpen, logged('CHANGES_REQUESTED')], now, TZ)).toMatchObject({ total: 1, completed: 0 });
+    expect(summarizeWorkload([assignedOpen, logged('APPROVED')], now, TZ)).toMatchObject({ total: 2, completed: 1 });
+  });
+
+  it('keeps an unapproved submission out of completion rate entirely', () => {
+    expect(summarizeWorkload([logged('PENDING')], now, TZ).completionRate).toBe(0);
+    expect(summarizeWorkload([logged('APPROVED')], now, TZ).completionRate).toBe(100);
+  });
+});
+
 describe('active workload', () => {
   it('drops completed work once its deadline has passed but keeps open overdue work', () => {
     const now = new Date('2026-09-20T06:30:00Z');
@@ -62,6 +99,8 @@ describe('active workload', () => {
       createdAt: assigned,
       dueAt: deadline,
       completedAt: deadline,
+      origin: 'ASSIGNED',
+      reviewStatus: null,
     };
     const stillOpen: WorkloadTask = { ...done, status: 'IN_PROGRESS', progress: 60, completedAt: null };
 

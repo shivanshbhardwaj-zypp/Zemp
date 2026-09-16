@@ -28,5 +28,11 @@ export function activityText(entry: Pick<TaskActivityEntry, 'type' | 'fromLabel'
       return 'reopened the task';
     case 'CANCELLED':
       return 'cancelled the task';
+    case 'SUBMITTED_FOR_REVIEW':
+      return to ? `submitted it for review by ${to}` : 'submitted it for review';
+    case 'REVIEW_APPROVED':
+      return 'approved this work';
+    case 'REVIEW_CHANGES_REQUESTED':
+      return 'asked for changes';
   }
 }

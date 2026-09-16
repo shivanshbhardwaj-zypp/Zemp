@@ -30,6 +30,19 @@ export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
   URGENT: 'Urgent',
 };
 
+/** Assigned by a manager, or logged by the employee themselves for review (requirements §39 "Approvals"). */
+export const TASK_ORIGINS = ['ASSIGNED', 'SELF_REPORTED'] as const;
+export type TaskOrigin = (typeof TASK_ORIGINS)[number];
+
+export const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'CHANGES_REQUESTED'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  PENDING: 'Pending review',
+  APPROVED: 'Approved',
+  CHANGES_REQUESTED: 'Changes requested',
+};
+
 /** Operational deadline/workload indicator — never a judgement of the person. */
 export const RISK_LEVELS = ['ON_TRACK', 'AT_RISK', 'OVERDUE', 'COMPLETED'] as const;
 export type RiskLevel = (typeof RISK_LEVELS)[number];
@@ -65,6 +78,9 @@ export const TASK_ACTIVITY_TYPES = [
   'COMPLETED',
   'REOPENED',
   'CANCELLED',
+  'SUBMITTED_FOR_REVIEW',
+  'REVIEW_APPROVED',
+  'REVIEW_CHANGES_REQUESTED',
 ] as const;
 export type TaskActivityType = (typeof TASK_ACTIVITY_TYPES)[number];
 
@@ -79,6 +95,9 @@ export const NOTIFICATION_TYPES = [
   'COMMENT_ADDED',
   'DEADLINE_APPROACHING',
   'TASK_OVERDUE',
+  'REVIEW_REQUESTED',
+  'REVIEW_APPROVED',
+  'REVIEW_CHANGES_REQUESTED',
   'SYSTEM',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -102,6 +121,9 @@ export const AUDIT_ACTIONS = [
   'TASK_REASSIGNED',
   'TASK_DUE_DATE_CHANGED',
   'TASK_CANCELLED',
+  'TASK_SELF_REPORTED',
+  'TASK_REVIEW_APPROVED',
+  'TASK_REVIEW_CHANGES_REQUESTED',
   'SETTINGS_UPDATED',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
