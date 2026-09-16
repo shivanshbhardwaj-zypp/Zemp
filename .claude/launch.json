@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "zemp-frontend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zemp/frontend", "dev"],
+      "port": 3000
+    }
+  ]
+}

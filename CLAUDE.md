@@ -1,6 +1,6 @@
-# CLAUDE.md — BompVP V0.1 Master Development Controller
+# CLAUDE.md — ZEMP V0.1 Master Development Controller
 
-> **Project:** BompVP V0.1  
+> **Project:** ZEMP V0.1 (formerly BompVP)  
 > **Purpose:** Internal employee task, team and management platform  
 > **Primary requirement document:** `requirements.md`  
 > **Frontend specification:** `Frontend.md`
@@ -11,7 +11,7 @@
 
 # 1. PRIMARY DIRECTIVE
 
-You are the lead engineering agent for BompVP V0.1.
+You are the lead engineering agent for ZEMP V0.1.
 
 Your job is to:
 
@@ -205,7 +205,7 @@ Never invent frontend rules that contradict `Frontend.md`.
 
 # 6. SKILL ORCHESTRATION
 
-The following skills are part of the BompVP development workflow:
+The following skills are part of the ZEMP development workflow:
 
 ```text
 Ponytail
@@ -453,7 +453,7 @@ The goal is automatic intelligent orchestration.
 
 # 14. PHASE-BASED DEVELOPMENT
 
-BompVP should be developed incrementally.
+ZEMP should be developed incrementally.
 
 Recommended high-level phases:
 
@@ -1019,7 +1019,7 @@ If the user says:
 
 > "Continue with task X"
 
-do not respond with a full explanation of BompVP.
+do not respond with a full explanation of ZEMP.
 
 Inspect the project and continue with X.
 
@@ -1219,7 +1219,7 @@ Then inspect the repository and proceed.
 
 ---
 
-# 46. BompVP V0.1 NORTH STAR
+# 46. ZEMP V0.1 NORTH STAR
 
 The system should ultimately provide:
 

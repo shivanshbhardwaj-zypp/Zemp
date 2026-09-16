@@ -1,6 +1,6 @@
-# BompVP V0.1 — Requirements & Architecture
+# ZEMP V0.1 — Requirements & Architecture
 
-> **Product:** BompVP (Business Operations & Management Platform)  
+> **Product:** ZEMP (formerly BompVP)  
 > **Version:** V0.1 MVP  
 > **Document:** Product Requirements, Technical Requirements & System Architecture  
 > **Status:** Development specification  
@@ -11,7 +11,7 @@
 
 ## 1. Product Vision
 
-BompVP V0.1 is an internal office management platform centered on:
+ZEMP V0.1 is an internal office management platform centered on:
 
 1. Employee and team management
 2. Hierarchical admin management
@@ -28,7 +28,7 @@ The V0.1 objective is to create a reliable operational core rather than attempti
 
 # 2. Core Organizational Model
 
-BompVP uses a hierarchical organization model.
+ZEMP uses a hierarchical organization model.
 
 ### Example
 
@@ -1391,7 +1391,7 @@ A feature is done when:
 
 # 43. Source of Truth Hierarchy
 
-When implementing BompVP:
+When implementing ZEMP:
 
 ```text
 Product requirement

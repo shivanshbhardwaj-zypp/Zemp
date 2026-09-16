@@ -1,6 +1,6 @@
-# Frontend.md — BompVP V0.1 Frontend System & UI Specification
+# Frontend.md — ZEMP V0.1 Frontend System & UI Specification
 
-> **Product:** BompVP — Business Operations & Management Platform  
+> **Product:** ZEMP (formerly BompVP)  
 > **Version:** V0.1  
 > **Purpose:** Authoritative frontend architecture, UX, visual language, wireframes, responsive rules, component system, interaction behavior, and implementation standards.
 >
@@ -8,13 +8,13 @@
 > - `requirements.md` — product/domain/backend requirements and business rules
 > - `CLAUDE.md` — master development controller and skill orchestration
 >
-> **Reference design:** The uploaded BompVP reference screenshot is the visual direction for the product. The screenshot is a visual reference, not a requirement to copy unrelated HR-specific content. Its visual language must be adapted to BompVP's employee/task/reporting product model.
+> **Reference design:** The reference screenshot `SAMPLE UI.webp` is the visual direction for the product. The screenshot is a visual reference, not a requirement to copy unrelated HR-specific content. Its visual language must be adapted to ZEMP's employee/task/reporting product model.
 
 ---
 
 # 1. FRONTEND NORTH STAR
 
-BompVP V0.1 should feel like a polished modern internal operations platform:
+ZEMP V0.1 should feel like a polished modern internal operations platform:
 
 ```text
 Clean
@@ -100,7 +100,7 @@ Coral / orange
 
 with additional soft pink/red/yellow abstract forms.
 
-For the actual BompVP application shell:
+For the actual ZEMP application shell:
 
 - The abstract outer background may be used as a product-shell backdrop on the main desktop experience.
 - It must remain visually subordinate to application content.
@@ -586,7 +586,7 @@ Outer canvas may contain the abstract warm gradient treatment.
 
 The reference uses a compact vertical sidebar.
 
-BompVP should adapt it to:
+ZEMP should adapt it to:
 
 ```text
 Brand / Logo
@@ -714,7 +714,7 @@ Do not make inactive navigation items colorful.
 
 The reference has a lightweight top utility bar.
 
-BompVP top bar:
+ZEMP top bar:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -768,7 +768,7 @@ background: #FFFFFF
 
 # 21. DASHBOARD PRINCIPLE
 
-The BompVP dashboard should answer immediately:
+The ZEMP dashboard should answer immediately:
 
 ```text
 What is happening?
@@ -874,7 +874,7 @@ Employee view should be simpler.
 
 Reference design uses four cards across the top.
 
-BompVP should use KPI cards for:
+ZEMP should use KPI cards for:
 
 - Total Employees
 - Active Employees
@@ -1325,7 +1325,7 @@ Employee List
 Organization Chart
 ```
 
-BompVP should provide:
+ZEMP should provide:
 
 ```text
 Employees
@@ -1594,7 +1594,7 @@ Wireframe:
 
 Reference screenshot has a notification icon.
 
-BompVP should support:
+ZEMP should support:
 
 ```text
 Task assigned
@@ -1817,7 +1817,7 @@ in the same navigation system.
 
 The reference uses circular employee avatars.
 
-BompVP:
+ZEMP:
 
 ```text
 32px → compact table
@@ -3276,7 +3276,7 @@ Unlock workforce potential
 Revolutionize your workday
 ```
 
-BompVP is an internal operations product.
+ZEMP is an internal operations product.
 
 ---
 
@@ -3451,11 +3451,11 @@ Specific sample data
 Exact business terminology
 ```
 
-Replace them with BompVP data.
+Replace them with ZEMP data.
 
 ---
 
-# 124. BOMPVP PRIMARY NAVIGATION
+# 124. ZEMP PRIMARY NAVIGATION
 
 Final V0.1 conceptual navigation:
 
@@ -3716,7 +3716,7 @@ If shadcn/ui is used:
 
 Use it as a primitive foundation.
 
-Customize its tokens to match BompVP.
+Customize its tokens to match ZEMP.
 
 Do not allow default shadcn styling to become the product identity without adaptation.
 
@@ -3753,7 +3753,7 @@ Navigation should preserve current location.
 Mobile:
 
 ```text
-☰   BompVP                 🔔
+☰   ZEMP                 🔔
 ```
 
 or equivalent.
@@ -4689,7 +4689,7 @@ Some can share components/routes where role-specific differences are primarily d
 ```text
 ┌─────────────────────────────────────┐
 │                                     │
-│              BompVP                 │
+│              ZEMP                 │
 │                                     │
 │         Welcome back                │
 │                                     │
@@ -5124,7 +5124,7 @@ Never begin by redesigning the whole application.
 
 # 205. REFERENCE DESIGN SUMMARY
 
-The BompVP V0.1 visual identity should consistently communicate:
+The ZEMP V0.1 visual identity should consistently communicate:
 
 ```text
 Warm coral accent
@@ -5157,7 +5157,7 @@ The reference screenshot is therefore the **visual north star**, while `requirem
 # 206. FINAL SOURCE-OF-TRUTH MAP
 
 ```text
-                         BompVP V0.1
+                         ZEMP V0.1
                               │
              ┌────────────────┼────────────────┐
              │                │                │
@@ -5186,7 +5186,7 @@ Do not duplicate the same rule across all three.
 
 # 207. END STATE
 
-BompVP V0.1 should feel like a coherent office operations command center where a user can understand, within seconds:
+ZEMP V0.1 should feel like a coherent office operations command center where a user can understand, within seconds:
 
 ```text
 WHO is working

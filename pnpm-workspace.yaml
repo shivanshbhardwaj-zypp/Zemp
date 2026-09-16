@@ -1,0 +1,11 @@
+packages:
+  - frontend
+  - backend
+  - packages/*
+
+# Install scripts run only where genuinely needed. unrs-resolver's native binary arrives as an
+# optional dependency, so its fallback postinstall is unnecessary.
+allowBuilds:
+  unrs-resolver: false
+
+saveExact: true

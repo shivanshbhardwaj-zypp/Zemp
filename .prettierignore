@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+*.md
+*.webp
+backend/prisma/migrations/
+backend/src/generated/

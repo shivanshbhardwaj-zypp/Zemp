@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment — only .env.example is committed
+.env
+.env.*
+!.env.example
+!frontend/.env.development
+
+# Local embedded PostgreSQL data directory
+.pgdata/
+
+# Test output
+playwright-report/
+test-results/
+blob-report/
+
+# Generated Prisma client
+backend/src/generated/
+
+.DS_Store
+Thumbs.db
