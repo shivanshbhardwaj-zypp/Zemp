@@ -11,7 +11,7 @@ import {
   NestInterceptor,
   PipeTransform,
 } from '@nestjs/common';
-import { DomainError, ERROR_MESSAGES, ERROR_STATUS, type ApiFailure, type ErrorCode, type PageMeta } from '@zemp/shared';
+import { DomainError, ERROR_MESSAGES, ERROR_STATUS, type ApiFailure, type ErrorCode, type PageMeta, type ValidationDetails } from '@zemp/shared';
 import type { Request, Response } from 'express';
 import { map, type Observable } from 'rxjs';
 import { z } from 'zod';
@@ -115,9 +115,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof DomainError) {
+      // Some domain errors carry per-field detail (e.g. a report date in the future).
+      const details = exception.details as ValidationDetails | undefined;
       return {
         status: ERROR_STATUS[exception.code],
-        body: { success: false, error: { code: exception.code, message: exception.message, requestId } },
+        body: {
+          success: false,
+          error: { code: exception.code, message: exception.message, ...(details ? { details } : {}), requestId },
+        },
       };
     }
 

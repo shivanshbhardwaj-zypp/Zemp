@@ -7,7 +7,7 @@ Read this first (CLAUDE.md §2, §40). ZEMP is a separate project from `../YT&IG
 | Phase | Scope | Status |
 |---|---|---|
 | A | Complete frontend on a temporary mock API | **Done** (typecheck, lint, 47 tests, `next build`) |
-| B | NestJS backend (auth, RBAC, domain services, REST `/api/v1`) | **Almost done** — every module but reports |
+| B | NestJS backend (auth, RBAC, domain services, REST `/api/v1`) | **Done** (56 routes, verified live) |
 | C | PostgreSQL + Prisma (schema, migrations, constraints, seed) | Not started |
 | D | Replace mock API with the real backend | Not started |
 | E | Testing, security review, hardening | Not started |
@@ -57,7 +57,7 @@ member of a team they own to **Sub Admin**, a co-admin for that one team.
 
 ## Phase B — backend status (16 Sep 2026)
 
-`backend/` is a running NestJS 12 API on `/api/v1`, seeded from `@zemp/shared/seed`, with 51 routes
+`backend/` is a running NestJS 12 API on `/api/v1`, seeded from `@zemp/shared/seed`, with 56 routes
 mapped. It is **ESM** (NestJS 12 and `@zemp/shared` are both ESM), so relative imports carry `.js`.
 
 **Done and verified live:** auth (argon2id, HttpOnly session + double-submit CSRF, change/reset
@@ -71,9 +71,9 @@ chart), notifications, audit log, settings, health (live/ready), Swagger at `/ap
 `{success, data, meta}` envelope, and an exception filter that maps `DomainError` to its status and
 never leaks a stack trace.
 
-**Still to write:** the **reports module** — `/dashboard/summary`, `/dashboard/attention`,
-`/reports/daily`, `/reports/progress`, `/activity`. Port `frontend/src/mocks/handlers/reports.ts`
-(`resolveScope`, `livePeople`/`liveTeams`, snapshot sums for past days) onto `StoreService`.
+**Reports** (added last): `/dashboard/summary`, `/dashboard/attention`, `/reports/daily` (LIVE for
+today, SNAPSHOT for earlier days), `/reports/progress`, `/activity` — all through one `resolveScope`
+so a filter naming something out of scope fails as not-found rather than widening the view.
 
 **Phase C note:** `StoreService` is the only thing that touches data. Swapping it for Prisma-backed
 repositories is the whole of Phase C's integration work; services and controllers do not change.
@@ -99,7 +99,8 @@ frontend          Next.js 16 (App Router, Turbopack), Tailwind 4 tokens, Radix p
                   TanStack Query, React Hook Form + Zod, Recharts (reports only).
   src/mocks       PHASE A MOCK API (in-memory seed, same contract). Delete in Phase D,
   src/app/api/v1  together with the catch-all route handler.
-backend           NestJS 12 (Phase B) — not created yet.
+backend           NestJS 12 API on /api/v1 (Phase B). ESM. StoreService is the only data seam;
+                  Phase C replaces it with Prisma repositories.
 ```
 
 Toolchain: Node 24.19, pnpm 12.3.4, TypeScript 6.0.3 (TS 7 unsupported by typescript-eslint/ts-jest/Nest CLI), NestJS 12 (ESM framework, CJS app per its template), Prisma 7.10 (npm `latest` tag is an 8.0 RC), Zod 4.6.
@@ -142,7 +143,7 @@ pnpm --filter @zemp/frontend lint
 pnpm --filter @zemp/frontend build
 ```
 
-**Next: finish Phase B** (the reports module), then **Phase C** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
+**Next: Phase C** (PostgreSQL + Prisma), then **Phase D** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
 
 ## Demo data (from the user's `Demo_Data.xlsx`, 16 Sep 2026)
 

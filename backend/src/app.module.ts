@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthController } from './modules/health/health.controller.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { PeopleModule } from './modules/people/people.module.js';
+import { ReportsModule } from './modules/reports/reports.module.js';
 import { ReviewsModule } from './modules/reviews/reviews.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
 import { TeamsModule } from './modules/teams/teams.module.js';
@@ -38,6 +39,7 @@ import { TeamsModule } from './modules/teams/teams.module.js';
     PeopleModule,
     TeamsModule,
     InboxModule,
+    ReportsModule,
   ],
   controllers: [HealthController],
   providers: [
