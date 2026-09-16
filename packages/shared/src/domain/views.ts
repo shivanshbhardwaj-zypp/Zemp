@@ -8,10 +8,12 @@ import type {
 } from '../contracts.js';
 import {
   REVIEW_STATUS_LABELS,
+  ROLE_LABELS,
   TASK_PRIORITY_LABELS,
   TASK_STATUS_LABELS,
   type AuditAction,
   type ReviewStatus,
+  type SystemRole,
   type RiskLevel,
   type TaskActivityType,
   type TaskPriority,
@@ -63,8 +65,9 @@ export function toTaskSummary(args: {
     isOverdue: isOverdue(task, now),
     deadlineState: deadlineState(task, now, timeZone),
     risk: taskRisk(task, now),
-    allowedTransitions: allowedTransitions(actor, task),
-    permissions: taskPermissions(actor, task),
+    // The assignee's role decides what a sub admin may do with it (access.ts: canManageTask).
+    allowedTransitions: allowedTransitions(actor, task, args.assignee.role),
+    permissions: taskPermissions(actor, task, args.assignee.role),
     origin: task.origin,
     evidenceUrl: task.evidenceUrl,
     review:
@@ -226,13 +229,17 @@ export function auditSummary(
     case 'PASSWORD_RESET_COMPLETED':
       return `Reset the password for ${person(entry.resourceId)}`;
     case 'USER_CREATED':
-      return `Created ${text('role') === 'ADMIN' ? 'admin' : 'employee'} ${person(entry.resourceId)}`;
+      return `Created ${ROLE_LABELS[(text('role') ?? 'EMPLOYEE') as SystemRole]?.toLowerCase() ?? 'employee'} ${person(entry.resourceId)}`;
     case 'USER_UPDATED':
       return `Updated ${person(entry.resourceId)}`;
     case 'USER_DEACTIVATED':
       return `Deactivated ${person(entry.resourceId)}`;
     case 'USER_REACTIVATED':
       return `Reactivated ${person(entry.resourceId)}`;
+    case 'USER_ROLE_CHANGED':
+      return text('to') === 'SUB_ADMIN'
+        ? `Made ${person(entry.resourceId)} a Sub Admin of ${team(text('teamId'))}`
+        : `Returned ${person(entry.resourceId)} to Employee`;
     case 'TEAM_CREATED':
       return `Created team ${team(entry.resourceId)}`;
     case 'TEAM_UPDATED':

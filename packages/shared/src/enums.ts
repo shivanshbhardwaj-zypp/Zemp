@@ -1,11 +1,25 @@
-export const SYSTEM_ROLES = ['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE'] as const;
+export const SYSTEM_ROLES = ['SUPER_ADMIN', 'ADMIN', 'SUB_ADMIN', 'EMPLOYEE'] as const;
 export type SystemRole = (typeof SYSTEM_ROLES)[number];
 
 export const ROLE_LABELS: Record<SystemRole, string> = {
   SUPER_ADMIN: 'Super Admin',
   ADMIN: 'Admin',
+  SUB_ADMIN: 'Sub Admin',
   EMPLOYEE: 'Employee',
 };
+
+/**
+ * A Sub Admin is a co-admin inside one team: an admin promotes a member of a team they own, and the
+ * member keeps their own work while gaining the admin's powers over that team only.
+ */
+export const isTeamManagerRole = (role: SystemRole) => role === 'ADMIN' || role === 'SUB_ADMIN';
+
+/** Roles that belong to a team as members who do the work and appear in its reports. */
+export const isTeamMemberRole = (role: SystemRole) => role === 'EMPLOYEE' || role === 'SUB_ADMIN';
+
+/** Roles an admin or Super Admin may move a person between (never an admin's own role). */
+export const DELEGATABLE_ROLES = ['EMPLOYEE', 'SUB_ADMIN'] as const;
+export type DelegatableRole = (typeof DELEGATABLE_ROLES)[number];
 
 export const TASK_STATUSES = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
@@ -114,6 +128,7 @@ export const AUDIT_ACTIONS = [
   'USER_UPDATED',
   'USER_DEACTIVATED',
   'USER_REACTIVATED',
+  'USER_ROLE_CHANGED',
   'TEAM_CREATED',
   'TEAM_UPDATED',
   'TEAM_MEMBER_MOVED',

@@ -1,9 +1,10 @@
 'use client';
 
-import type { TeamMemberItem } from '@zemp/shared';
-import { ListChecks, Pencil, SearchX, UserPlus, Users } from 'lucide-react';
+import { ROLE_LABELS, type TeamMemberItem } from '@zemp/shared';
+import { ListChecks, Pencil, SearchX, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { DelegateAction } from '@/components/people/DelegateAction';
 import { DataTable, type Column } from '@/components/shared/DataTable';
 import { KpiCard, KpiGrid } from '@/components/shared/KpiCard';
 import { Breadcrumbs } from '@/components/shared/PageHeader';
@@ -59,9 +60,16 @@ export function TeamDetail({ id }: { id: string }) {
         <div className="flex min-w-0 items-center gap-3">
           <UserAvatar name={m.name} size="sm" />
           <div className="min-w-0">
-            <Link href={`/employees/${m.id}`} className="block truncate font-medium text-ink hover:underline">
-              {m.name}
-            </Link>
+            <span className="flex items-center gap-2">
+              <Link href={`/employees/${m.id}`} className="truncate font-medium text-ink hover:underline">
+                {m.name}
+              </Link>
+              {m.role === 'SUB_ADMIN' && (
+                <Badge tone="primary" icon={ShieldCheck}>
+                  {ROLE_LABELS.SUB_ADMIN}
+                </Badge>
+              )}
+            </span>
             <p className="truncate text-meta text-ink-muted">{m.employeeCode}</p>
           </div>
         </div>
@@ -93,6 +101,12 @@ export function TeamDetail({ id }: { id: string }) {
     { key: 'risk', header: 'Workload', cell: (m) => <RiskBadge risk={m.risk} /> },
     { key: 'status', header: 'Status', cell: (m) => <ActiveBadge active={m.isActive} /> },
     { key: 'joined', header: 'In team since', cell: (m) => <span className="text-ink-muted tabular">{formatDate(m.joinedAt, timeZone)}</span> },
+    {
+      key: 'delegate',
+      header: 'Sub Admin',
+      cell: (m) =>
+        m.canDelegate ? <DelegateAction person={{ ...m, teamName: t.name }} /> : <span className="text-ink-faint">—</span>,
+    },
   ];
 
   return (

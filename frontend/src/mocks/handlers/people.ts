@@ -2,12 +2,17 @@
 import {
   DomainError,
   OPEN_TASK_STATUSES,
+  ROLE_PERMISSIONS,
+  canDelegateRole,
   canViewPerson,
   canViewTask,
+  changeRoleSchema,
   countInDay,
   createAdminSchema,
   createEmployeeSchema,
+  isTeamMemberRole,
   listPeopleQuerySchema,
+  planRoleChange,
   summarizeWorkload,
   updateAdminSchema,
   updateEmployeeSchema,
@@ -28,6 +33,7 @@ import {
   findTeam,
   findUser,
   issueResetToken,
+  managedTeamIds,
   managerOf,
   newId,
   ownedTeams,
@@ -70,15 +76,28 @@ function employeeDetail(u: SeedUser, viewer: SeedUser, now: Date): EmployeeDetai
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     ownedTeams: ownedTeams(u.id).map(teamRef),
     completedToday: countInDay(tasks.map((t) => (t.status === 'COMPLETED' ? t.completedAt : null)), now, zone()),
-    permissions: { canEdit: manageable, canChangeStatus: manageable && u.id !== viewer.id, canResetPassword: manageable },
+    permissions: {
+      canEdit: manageable,
+      canChangeStatus: manageable && u.id !== viewer.id,
+      canResetPassword: manageable,
+      // Appointing a Sub Admin needs the permission and scope over that person (access.ts).
+      canDelegate:
+        ROLE_PERMISSIONS[viewer.role].includes('users.delegate') &&
+        canDelegateRole(actor, { id: u.id, role: u.role, teamId: currentTeam(u.id)?.id ?? null }),
+    },
   };
 }
 
-/** Admins see employees of the teams they own; the Super Admin sees everyone. */
-function peopleInScope(viewer: SeedUser, role: 'EMPLOYEE' | 'ADMIN') {
-  const owned = ownedTeams(viewer.id).map((t) => t.id);
+/**
+ * Team managers see the staff of the teams they manage (an admin's own teams, a sub admin's one
+ * team); the Super Admin sees everyone. "Staff" covers employees and sub admins, who stay team
+ * members after promotion.
+ */
+function peopleInScope(viewer: SeedUser, kind: 'STAFF' | 'ADMIN') {
+  const managed = managedTeamIds(viewer);
+  const matches = (u: SeedUser) => (kind === 'ADMIN' ? u.role === 'ADMIN' : isTeamMemberRole(u.role));
   return db().users.filter(
-    (u) => u.role === role && (viewer.role === 'SUPER_ADMIN' || owned.includes(currentTeam(u.id)?.id ?? '')),
+    (u) => matches(u) && (viewer.role === 'SUPER_ADMIN' || managed.includes(currentTeam(u.id)?.id ?? '')),
   );
 }
 
@@ -90,7 +109,7 @@ function assertUnique(email: string | undefined, employeeCode: string | undefine
   }
 }
 
-function listPeople(viewer: SeedUser, role: 'EMPLOYEE' | 'ADMIN', query: Record<string, string>) {
+function listPeople(viewer: SeedUser, role: 'STAFF' | 'ADMIN', query: Record<string, string>) {
   const q = parse(listPeopleQuerySchema, query);
   const search = q.search?.toLowerCase();
   const people = peopleInScope(viewer, role).filter(
@@ -109,14 +128,14 @@ function listPeople(viewer: SeedUser, role: 'EMPLOYEE' | 'ADMIN', query: Record<
 
 get('/employees', ({ user, query, now }) => {
   requirePermission(user, 'users.read');
-  const { page } = listPeople(user, 'EMPLOYEE', query);
+  const { page } = listPeople(user, 'STAFF', query);
   const actor = actorFor(user);
   return new Paged(page.items.map((u) => employeeItem(u, actor, now)), page.meta);
 });
 
 get('/employees/stats', ({ user }) => {
   requirePermission(user, 'users.read');
-  const people = peopleInScope(user, 'EMPLOYEE');
+  const people = peopleInScope(user, 'STAFF');
   const active = people.filter((u) => u.isActive);
   const actor = actorFor(user);
   const openTasks = active.reduce(
@@ -184,7 +203,7 @@ patch('/employees/:id', ({ req, user, params, body, now }) => {
   requirePermission(user, 'users.update');
   const input = parse(updateEmployeeSchema, body);
   const person = loadPerson(user, params.id!);
-  if (person.role !== 'EMPLOYEE') throw new DomainError('USER_NOT_FOUND');
+  if (!isTeamMemberRole(person.role)) throw new DomainError('USER_NOT_FOUND');
   assertUnique(input.email, input.employeeCode, person.id);
   if (input.teamId) moveToTeam(req, now, user.id, person, input.teamId);
   const fields = (['name', 'email', 'employeeCode', 'jobTitle'] as const).filter(
@@ -192,6 +211,26 @@ patch('/employees/:id', ({ req, user, params, body, now }) => {
   );
   for (const key of fields) person[key] = input[key]!;
   if (fields.length) addAudit(req, now, user.id, 'USER_UPDATED', 'USER', person.id, { fields });
+  return employeeDetail(person, user, now);
+});
+
+/** Promote a team member to Sub Admin, or return them to Employee (requirements §39, user-requested). */
+patch('/employees/:id/role', ({ req, user, params, body, now }) => {
+  requirePermission(user, 'users.delegate');
+  const input = parse(changeRoleSchema, body);
+  const person = loadPerson(user, params.id!);
+  const team = currentTeam(person.id);
+  const plan = planRoleChange({
+    actor: actorFor(user),
+    person: { id: person.id, name: person.name, role: person.role, teamId: team?.id ?? null, isActive: person.isActive },
+    to: input.role,
+    teamName: team?.name,
+  });
+  person.role = plan.patch.role;
+  for (const notification of plan.notifications) {
+    db().notifications.unshift({ id: newId(), ...notification, taskId: null, readAt: null, createdAt: now });
+  }
+  for (const entry of plan.audits) addAudit(req, now, user.id, entry.action, 'USER', person.id, entry.metadata);
   return employeeDetail(person, user, now);
 });
 

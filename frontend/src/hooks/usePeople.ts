@@ -1,7 +1,14 @@
 'use client';
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateAdminInput, CreateEmployeeInput, ListPeopleQuery, UpdateAdminInput, UpdateEmployeeInput } from '@zemp/shared';
+import type {
+  ChangeRoleInput,
+  CreateAdminInput,
+  CreateEmployeeInput,
+  ListPeopleQuery,
+  UpdateAdminInput,
+  UpdateEmployeeInput,
+} from '@zemp/shared';
 import { peopleApi } from '@/lib/api/people';
 import { invalidateWorkData } from './useTasks';
 
@@ -41,6 +48,9 @@ export const useUpdateEmployee = (id: string) =>
   usePeopleMutation((input: UpdateEmployeeInput) => peopleApi.updateEmployee(id, input));
 export const useCreateAdmin = () => usePeopleMutation((input: CreateAdminInput) => peopleApi.createAdmin(input));
 export const useUpdateAdmin = (id: string) => usePeopleMutation((input: UpdateAdminInput) => peopleApi.updateAdmin(id, input));
+/** Changing someone's role changes what they see everywhere, so every work query is refreshed. */
+export const useChangeRole = (id: string) =>
+  usePeopleMutation((input: ChangeRoleInput) => peopleApi.changeRole(id, input));
 export const useSetAccountActive = () =>
   usePeopleMutation(({ id, active }: { id: string; active: boolean }) =>
     active ? peopleApi.reactivate(id) : peopleApi.deactivate(id),

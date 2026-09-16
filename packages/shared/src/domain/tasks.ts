@@ -1,11 +1,14 @@
 import {
   OPEN_TASK_STATUSES,
   TASK_STATUS_LABELS,
+  isTeamManagerRole,
+  isTeamMemberRole,
   type AuditAction,
   type DeadlineState,
   type NotificationType,
   type ReviewStatus,
   type RiskLevel,
+  type SystemRole,
   type TaskActivityType,
   type TaskOrigin,
   type TaskPriority,
@@ -166,21 +169,21 @@ export function taskRisk(
   return task.progress / 100 + TASK_RISK_TOLERANCE < expected ? 'AT_RISK' : 'ON_TRACK';
 }
 
-export function allowedTransitions(actor: Actor, task: TaskRecord): TaskStatus[] {
-  if (!canWorkOnTask(actor, task)) return [];
-  const manager = canManageTask(actor, task);
+export function allowedTransitions(actor: Actor, task: TaskRecord, assigneeRole: SystemRole): TaskStatus[] {
+  if (!canWorkOnTask(actor, task, assigneeRole)) return [];
+  const manager = canManageTask(actor, task, assigneeRole);
   return STATUS_TRANSITIONS[task.status].filter(
     (to) => manager || !isManagerOnlyTransition(task.status, to),
   );
 }
 
-export function taskPermissions(actor: Actor, task: TaskRecord): TaskPermissions {
+export function taskPermissions(actor: Actor, task: TaskRecord, assigneeRole: SystemRole): TaskPermissions {
   const open = isOpenStatus(task.status);
-  const manager = canManageTask(actor, task);
+  const manager = canManageTask(actor, task, assigneeRole);
   return {
     canEdit: manager && open,
     canReassign: manager && open,
-    canUpdateProgress: open && canWorkOnTask(actor, task),
+    canUpdateProgress: open && canWorkOnTask(actor, task, assigneeRole),
     canComment: canViewTask(actor, task),
     canCancel: manager && open,
     canReopen: manager && task.status === 'COMPLETED',
@@ -215,9 +218,9 @@ function assertVisible(actor: Actor, task: TaskRecord) {
   if (!canViewTask(actor, task)) throw new DomainError('TASK_NOT_FOUND');
 }
 
-function assertManageable(actor: Actor, task: TaskRecord) {
+function assertManageable(actor: Actor, task: TaskRecord, assigneeRole: SystemRole) {
   assertVisible(actor, task);
-  if (!canManageTask(actor, task)) throw new DomainError('FORBIDDEN');
+  if (!canManageTask(actor, task, assigneeRole)) throw new DomainError('FORBIDDEN');
   if (!isOpenStatus(task.status)) throw new DomainError('TASK_NOT_EDITABLE');
 }
 
@@ -229,7 +232,7 @@ export function assertAssignable(actor: Actor, assignee: AssigneeCandidate) {
 
 /** Employees work inside their current team; admin-level work sits in a team the admin owns. */
 export function resolveTaskTeam(assignee: AssigneeCandidate, requestedTeamId?: string | null) {
-  if (assignee.role === 'EMPLOYEE') {
+  if (isTeamMemberRole(assignee.role)) {
     if (!assignee.teamId) throw new DomainError('INVALID_TEAM', 'This employee is not in a team yet.');
     if (requestedTeamId && requestedTeamId !== assignee.teamId) {
       throw new DomainError('INVALID_TEAM', 'The employee is not a member of the selected team.');
@@ -268,7 +271,7 @@ export function planCreateTask(args: {
   now: Date;
 }): NewTaskPlan {
   const { actor, assignee, input, now } = args;
-  if (actor.role === 'EMPLOYEE') throw new DomainError('FORBIDDEN');
+  if (!isTeamManagerRole(actor.role) && actor.role !== 'SUPER_ADMIN') throw new DomainError('FORBIDDEN');
   assertAssignable(actor, assignee);
   if (input.dueAt.getTime() <= now.getTime()) throw new DomainError('INVALID_DUE_DATE');
   if (input.startAt && input.startAt > input.dueAt) {
@@ -320,6 +323,8 @@ export function planStatusChange(args: {
   task: TaskRecord;
   to: TaskStatus;
   note?: string | null;
+  /** The assignee's role — a sub admin may not cancel or reopen their own admin's work. */
+  assigneeRole: SystemRole;
   now: Date;
 }): TaskPlan {
   const { actor, task, to, now } = args;
@@ -334,7 +339,7 @@ export function planStatusChange(args: {
       `A task cannot move from ${TASK_STATUS_LABELS[from]} to ${TASK_STATUS_LABELS[to]}.`,
     );
   }
-  if (!allowedTransitions(actor, task).includes(to)) throw new DomainError('FORBIDDEN');
+  if (!allowedTransitions(actor, task, args.assigneeRole).includes(to)) throw new DomainError('FORBIDDEN');
 
   plan.patch.status = to;
   if (to === 'COMPLETED') {
@@ -378,6 +383,7 @@ export function planProgressUpdate(args: {
   actor: NamedActor;
   task: TaskRecord;
   progress: number;
+  assigneeRole: SystemRole;
   now: Date;
 }): TaskPlan {
   const { actor, task, progress, now } = args;
@@ -386,7 +392,7 @@ export function planProgressUpdate(args: {
     throw new DomainError('INVALID_PROGRESS');
   }
   if (!isOpenStatus(task.status)) throw new DomainError('TASK_NOT_EDITABLE');
-  if (!canWorkOnTask(actor, task)) throw new DomainError('FORBIDDEN');
+  if (!canWorkOnTask(actor, task, args.assigneeRole)) throw new DomainError('FORBIDDEN');
   if (progress === task.progress) return emptyPlan();
 
   const plan = emptyPlan();
@@ -396,7 +402,13 @@ export function planProgressUpdate(args: {
     }
     // 100% means done (requirements §9): complete the task, starting it first if needed.
     if (task.status === 'TODO') plan.activities.push(activity('STATUS_CHANGED', 'TODO', 'IN_PROGRESS'));
-    const completion = planStatusChange({ actor, task: { ...task, status: 'IN_PROGRESS' }, to: 'COMPLETED', now });
+    const completion = planStatusChange({
+      actor,
+      task: { ...task, status: 'IN_PROGRESS' },
+      to: 'COMPLETED',
+      assigneeRole: args.assigneeRole,
+      now,
+    });
     return {
       patch: completion.patch,
       activities: [...plan.activities, ...completion.activities],
@@ -425,10 +437,11 @@ export function planTaskUpdate(args: {
   actor: NamedActor;
   task: TaskRecord;
   input: TaskEditInput;
+  assigneeRole: SystemRole;
   now: Date;
 }): TaskPlan {
   const { actor, task, input, now } = args;
-  assertManageable(actor, task);
+  assertManageable(actor, task, args.assigneeRole);
   const plan = emptyPlan();
   const changedFields: string[] = [];
 
@@ -481,9 +494,11 @@ export function planReassign(args: {
   task: TaskRecord;
   assignee: AssigneeCandidate;
   teamId?: string | null;
+  /** The current assignee's role — a sub admin may not reassign their own admin's work. */
+  assigneeRole: SystemRole;
 }): TaskPlan {
   const { actor, task, assignee } = args;
-  assertManageable(actor, task);
+  assertManageable(actor, task, args.assigneeRole);
   const plan = emptyPlan();
   if (assignee.id === task.assigneeId) return plan;
   assertAssignable(actor, assignee);
@@ -537,7 +552,7 @@ export function planSelfReport(args: {
   now: Date;
 }): NewTaskPlan {
   const { actor, author, reviewer, input, now } = args;
-  if (actor.role !== 'EMPLOYEE' || author.id !== actor.id) throw new DomainError('FORBIDDEN');
+  if (!isTeamMemberRole(actor.role) || author.id !== actor.id) throw new DomainError('FORBIDDEN');
   if (!canReviewFor(reviewer, author)) throw new DomainError('REVIEWER_OUT_OF_SCOPE');
   assertCompletedAt(input.completedAt, now);
 

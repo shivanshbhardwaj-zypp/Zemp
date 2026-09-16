@@ -21,6 +21,7 @@ import { ApiError } from '@/lib/api/client';
 import { formatCount, formatDateTime, formatPercent, formatRelative } from '@/lib/format';
 import { useTimeZone, useUser } from '@/lib/session';
 import { AccountStatusDialog, PasswordResetDialog } from './AccountActions';
+import { DelegateAction } from './DelegateAction';
 import { EmployeeFormDialog } from './PersonForms';
 
 /** Employee profile: identity, workload overview, current tasks, recent activity (Frontend.md §41). */
@@ -90,6 +91,9 @@ export function EmployeeProfile({ id }: { id: string }) {
               View tasks
             </Link>
           </Button>
+          {e.permissions.canDelegate && (
+            <DelegateAction person={{ id: e.id, name: e.name, role: e.role, teamName: e.team?.name }} size="md" />
+          )}
           {e.permissions.canEdit && e.role === 'EMPLOYEE' && (
             <Button variant="secondary" size="sm" onClick={() => setDialog('edit')}>
               <Pencil />

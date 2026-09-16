@@ -20,7 +20,12 @@ import { StatusBreakdownCard } from './StatusBreakdownCard';
 import { TeamActivityTable } from './TeamActivityTable';
 import { WatchlistCard } from './WatchlistCard';
 
-const TITLES = { SUPER_ADMIN: 'Dashboard', ADMIN: 'My Team Dashboard', EMPLOYEE: 'My Work' } as const;
+const TITLES = {
+  SUPER_ADMIN: 'Dashboard',
+  ADMIN: 'My Team Dashboard',
+  SUB_ADMIN: 'My Team Dashboard',
+  EMPLOYEE: 'My Work',
+} as const;
 
 /**
  * One dashboard, three scopes (Frontend.md §198–199). On small screens the order follows §135:

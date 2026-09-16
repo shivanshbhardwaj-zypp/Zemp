@@ -71,31 +71,31 @@ const errorCode = (fn: () => unknown) => {
 
 describe('access and transitions', () => {
   it('lets the assignee move work forward but not cancel or reopen it', () => {
-    expect(allowedTransitions(alice, task())).toEqual(['BLOCKED', 'COMPLETED']);
-    expect(allowedTransitions(alice, task({ status: 'COMPLETED', progress: 100 }))).toEqual([]);
+    expect(allowedTransitions(alice, task(), 'EMPLOYEE')).toEqual(['BLOCKED', 'COMPLETED']);
+    expect(allowedTransitions(alice, task({ status: 'COMPLETED', progress: 100 }), 'EMPLOYEE')).toEqual([]);
   });
 
   it('gives the owning admin full control and other admins nothing', () => {
-    expect(allowedTransitions(rock, task())).toEqual(['BLOCKED', 'COMPLETED', 'CANCELLED']);
-    expect(allowedTransitions(bruce, task())).toEqual([]);
-    expect(taskPermissions(bruce, task()).canComment).toBe(false);
+    expect(allowedTransitions(rock, task(), 'EMPLOYEE')).toEqual(['BLOCKED', 'COMPLETED', 'CANCELLED']);
+    expect(allowedTransitions(bruce, task(), 'EMPLOYEE')).toEqual([]);
+    expect(taskPermissions(bruce, task(), 'EMPLOYEE').canComment).toBe(false);
   });
 
   it('treats work assigned to an admin as theirs to do, not to manage', () => {
     const adminTask = task({ assigneeId: 'rock', assignorId: 'john' });
-    expect(taskPermissions(rock, adminTask)).toMatchObject({
+    expect(taskPermissions(rock, adminTask, 'ADMIN')).toMatchObject({
       canUpdateProgress: true,
       canEdit: false,
       canCancel: false,
     });
-    expect(taskPermissions(superAdmin, adminTask).canEdit).toBe(true);
+    expect(taskPermissions(superAdmin, adminTask, 'ADMIN').canEdit).toBe(true);
   });
 
   it("hides other people's tasks behind not-found (IDOR)", () => {
-    expect(errorCode(() => planProgressUpdate({ actor: bob, task: task(), progress: 50, now }))).toBe(
+    expect(errorCode(() => planProgressUpdate({ actor: bob, task: task(), progress: 50, assigneeRole: 'EMPLOYEE', now }))).toBe(
       'TASK_NOT_FOUND',
     );
-    expect(errorCode(() => planStatusChange({ actor: bruce, task: task(), to: 'CANCELLED', now }))).toBe(
+    expect(errorCode(() => planStatusChange({ actor: bruce, task: task(), to: 'CANCELLED', assigneeRole: 'EMPLOYEE', now }))).toBe(
       'TASK_NOT_FOUND',
     );
   });
@@ -104,23 +104,23 @@ describe('access and transitions', () => {
 describe('status changes', () => {
   it('rejects transitions outside the lifecycle', () => {
     const todo = task({ status: 'TODO', progress: 0 });
-    expect(errorCode(() => planStatusChange({ actor: rock, task: todo, to: 'COMPLETED', now }))).toBe(
+    expect(errorCode(() => planStatusChange({ actor: rock, task: todo, to: 'COMPLETED', assigneeRole: 'EMPLOYEE', now }))).toBe(
       'INVALID_STATUS_TRANSITION',
     );
     const cancelled = task({ status: 'CANCELLED' });
     expect(
-      errorCode(() => planStatusChange({ actor: superAdmin, task: cancelled, to: 'IN_PROGRESS', now })),
+      errorCode(() => planStatusChange({ actor: superAdmin, task: cancelled, to: 'IN_PROGRESS', assigneeRole: 'EMPLOYEE', now })),
     ).toBe('INVALID_STATUS_TRANSITION');
   });
 
   it('forbids employees from cancelling', () => {
-    expect(errorCode(() => planStatusChange({ actor: alice, task: task(), to: 'CANCELLED', now }))).toBe(
+    expect(errorCode(() => planStatusChange({ actor: alice, task: task(), to: 'CANCELLED', assigneeRole: 'EMPLOYEE', now }))).toBe(
       'FORBIDDEN',
     );
   });
 
   it('completes at 100% with a timestamp, history and a notification for the assignor', () => {
-    const plan = planStatusChange({ actor: alice, task: task(), to: 'COMPLETED', note: 'Shipped', now });
+    const plan = planStatusChange({ actor: alice, task: task(), to: 'COMPLETED', note: 'Shipped', assigneeRole: 'EMPLOYEE', now });
     expect(plan.patch).toMatchObject({
       status: 'COMPLETED',
       progress: 100,
@@ -133,7 +133,7 @@ describe('status changes', () => {
 
   it('reopens completed work explicitly and drops progress below 100', () => {
     const done = task({ status: 'COMPLETED', progress: 100, completedAt: now });
-    const plan = planStatusChange({ actor: rock, task: done, to: 'IN_PROGRESS', now });
+    const plan = planStatusChange({ actor: rock, task: done, to: 'IN_PROGRESS', assigneeRole: 'EMPLOYEE', now });
     expect(plan.patch).toMatchObject({ status: 'IN_PROGRESS', progress: 99, completedAt: null });
     expect(plan.activities[0]?.type).toBe('REOPENED');
   });
@@ -141,28 +141,28 @@ describe('status changes', () => {
 
 describe('progress updates', () => {
   it('starts a to-do task when progress begins', () => {
-    const plan = planProgressUpdate({ actor: alice, task: task({ status: 'TODO', progress: 0 }), progress: 20, now });
+    const plan = planProgressUpdate({ actor: alice, task: task({ status: 'TODO', progress: 0 }), progress: 20, assigneeRole: 'EMPLOYEE', now });
     expect(plan.patch).toEqual({ progress: 20, status: 'IN_PROGRESS' });
   });
 
   it('treats 100% as completion', () => {
-    const plan = planProgressUpdate({ actor: alice, task: task({ status: 'TODO', progress: 0 }), progress: 100, now });
+    const plan = planProgressUpdate({ actor: alice, task: task({ status: 'TODO', progress: 0 }), progress: 100, assigneeRole: 'EMPLOYEE', now });
     expect(plan.patch).toMatchObject({ status: 'COMPLETED', progress: 100 });
     expect(plan.activities.map((a) => a.type)).toEqual(['STATUS_CHANGED', 'PROGRESS_CHANGED', 'COMPLETED']);
   });
 
   it('rejects invalid values, completing blocked work and changing finished tasks', () => {
     for (const progress of [101, -1, 12.5]) {
-      expect(errorCode(() => planProgressUpdate({ actor: alice, task: task(), progress, now }))).toBe(
+      expect(errorCode(() => planProgressUpdate({ actor: alice, task: task(), progress, assigneeRole: 'EMPLOYEE', now }))).toBe(
         'INVALID_PROGRESS',
       );
     }
     expect(
-      errorCode(() => planProgressUpdate({ actor: alice, task: task({ status: 'BLOCKED' }), progress: 100, now })),
+      errorCode(() => planProgressUpdate({ actor: alice, task: task({ status: 'BLOCKED' }), progress: 100, assigneeRole: 'EMPLOYEE', now })),
     ).toBe('INVALID_STATUS_TRANSITION');
     expect(
       errorCode(() =>
-        planProgressUpdate({ actor: alice, task: task({ status: 'COMPLETED', progress: 100 }), progress: 50, now }),
+        planProgressUpdate({ actor: alice, task: task({ status: 'COMPLETED', progress: 100 }), progress: 50, assigneeRole: 'EMPLOYEE', now }),
       ),
     ).toBe('TASK_NOT_EDITABLE');
   });
@@ -206,7 +206,12 @@ describe('assignment', () => {
   });
 
   it('reassigns with history, an audit entry and notifications to both people', () => {
-    const plan = planReassign({ actor: rock, task: task(), assignee: candidate({ id: 'carol', name: 'Carol' }) });
+    const plan = planReassign({
+      actor: rock,
+      task: task(),
+      assignee: candidate({ id: 'carol', name: 'Carol' }),
+      assigneeRole: 'EMPLOYEE',
+    });
     expect(plan.patch).toEqual({ assigneeId: 'carol', teamId: 'team-rock' });
     expect(plan.audits[0]?.action).toBe('TASK_REASSIGNED');
     expect(plan.notifications.map((n) => [n.userId, n.type])).toEqual([
@@ -217,14 +222,16 @@ describe('assignment', () => {
 
   it('audits due date changes and rejects moving them into the past', () => {
     const later = { dueAt: new Date('2026-09-20T12:30:00Z') };
-    expect(planTaskUpdate({ actor: rock, task: task(), input: later, now }).audits[0]?.action).toBe(
+    expect(planTaskUpdate({ actor: rock, task: task(), input: later, assigneeRole: 'EMPLOYEE', now }).audits[0]?.action).toBe(
       'TASK_DUE_DATE_CHANGED',
     );
     const earlier = { dueAt: new Date('2026-09-10T12:30:00Z') };
-    expect(errorCode(() => planTaskUpdate({ actor: rock, task: task(), input: earlier, now }))).toBe(
+    expect(errorCode(() => planTaskUpdate({ actor: rock, task: task(), input: earlier, assigneeRole: 'EMPLOYEE', now }))).toBe(
       'INVALID_DUE_DATE',
     );
-    expect(errorCode(() => planTaskUpdate({ actor: alice, task: task(), input: { title: 'Renamed' }, now }))).toBe(
+    expect(
+      errorCode(() => planTaskUpdate({ actor: alice, task: task(), input: { title: 'Renamed' }, assigneeRole: 'EMPLOYEE', now })),
+    ).toBe(
       'FORBIDDEN',
     );
   });
@@ -292,10 +299,10 @@ describe('self-reported work', () => {
 
   it('lets only the chosen reviewer or a Super Admin decide — never the author', () => {
     const pending = submission();
-    expect(taskPermissions(rock, pending).canReview).toBe(true);
-    expect(taskPermissions(superAdmin, pending).canReview).toBe(true);
-    expect(taskPermissions(bruce, pending).canReview).toBe(false);
-    expect(taskPermissions(alice, pending).canReview).toBe(false);
+    expect(taskPermissions(rock, pending, 'EMPLOYEE').canReview).toBe(true);
+    expect(taskPermissions(superAdmin, pending, 'EMPLOYEE').canReview).toBe(true);
+    expect(taskPermissions(bruce, pending, 'EMPLOYEE').canReview).toBe(false);
+    expect(taskPermissions(alice, pending, 'EMPLOYEE').canReview).toBe(false);
     expect(errorCode(() => planReviewDecision({ actor: alice, task: pending, decision: 'APPROVE', now }))).toBe('FORBIDDEN');
     // Alice's own submission is out of Bruce's scope entirely, so it reads as missing.
     expect(errorCode(() => planReviewDecision({ actor: bruce, task: pending, decision: 'APPROVE', now }))).toBe(
@@ -321,8 +328,8 @@ describe('self-reported work', () => {
     expect(returned.patch.reviewStatus).toBe('CHANGES_REQUESTED');
 
     const changed = submission({ reviewStatus: 'CHANGES_REQUESTED', reviewNote: 'Add detail' });
-    expect(taskPermissions(alice, changed).canResubmit).toBe(true);
-    expect(taskPermissions(bob, changed).canResubmit).toBe(false);
+    expect(taskPermissions(alice, changed, 'EMPLOYEE').canResubmit).toBe(true);
+    expect(taskPermissions(bob, changed, 'EMPLOYEE').canResubmit).toBe(false);
     const resubmitted = planResubmit({ actor: alice, task: changed, input: { description: 'Added the detail.' }, now });
     expect(resubmitted.patch).toMatchObject({ reviewStatus: 'PENDING', reviewNote: null, reviewedAt: null });
     expect(resubmitted.notifications).toEqual([expect.objectContaining({ userId: 'rock', type: 'REVIEW_REQUESTED' })]);

@@ -2,6 +2,8 @@
 import {
   DomainError,
   addTeamMemberSchema,
+  ROLE_PERMISSIONS,
+  canDelegateRole,
   canViewTask,
   canViewTeam,
   createTeamSchema,
@@ -150,8 +152,12 @@ get('/teams/:id/members', ({ user, params, now }) => {
         email: u.email,
         employeeCode: u.employeeCode,
         jobTitle: u.jobTitle,
+        role: u.role,
         isActive: u.isActive,
         joinedAt: membership.joinedAt.toISOString(),
+        canDelegate:
+          ROLE_PERMISSIONS[user.role].includes('users.delegate') &&
+          canDelegateRole(actor, { id: u.id, role: u.role, teamId: team.id }),
         workload: progress.workload,
         risk: progress.risk,
       };

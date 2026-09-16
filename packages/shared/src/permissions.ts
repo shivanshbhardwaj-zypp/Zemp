@@ -6,6 +6,7 @@ export const PERMISSIONS = [
   'users.create',
   'users.update',
   'users.deactivate',
+  'users.delegate',
   'teams.read',
   'teams.create',
   'teams.update',
@@ -34,6 +35,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'users.create': 'Create admins and employees',
   'users.update': 'Edit people and move them between teams',
   'users.deactivate': 'Deactivate and reactivate accounts',
+  'users.delegate': 'Promote a team member to Sub Admin, or return them to Employee',
   'teams.read': 'View teams within scope',
   'teams.create': 'Create teams',
   'teams.update': 'Edit teams, owners and membership',
@@ -61,22 +63,30 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
  * authoritative at runtime. Admin data is additionally limited to teams the admin owns, and
  * employee data to their own work — see domain/access.ts.
  */
+const ADMIN_PERMISSIONS = [
+  'users.read',
+  'teams.read',
+  'tasks.read',
+  'tasks.create',
+  'tasks.assign',
+  'tasks.update',
+  'tasks.reassign',
+  'tasks.complete',
+  'tasks.delete',
+  'tasks.review',
+  'reports.read',
+  'reports.team',
+  'reports.employee',
+] as const satisfies readonly Permission[];
+
 export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
   SUPER_ADMIN: PERMISSIONS,
-  ADMIN: [
-    'users.read',
-    'teams.read',
-    'tasks.read',
-    'tasks.create',
-    'tasks.assign',
-    'tasks.update',
-    'tasks.reassign',
-    'tasks.complete',
-    'tasks.delete',
-    'tasks.review',
-    'reports.read',
-    'reports.team',
-    'reports.employee',
-  ],
+  ADMIN: [...ADMIN_PERMISSIONS, 'users.delegate'],
+  /**
+   * A co-admin for one team: the admin's permissions, scoped by domain/access.ts to the team they
+   * lead. They keep `tasks.selfReport` because they still do their own work, and they cannot
+   * delegate — only the team's owning admin (or the Super Admin) appoints Sub Admins.
+   */
+  SUB_ADMIN: [...ADMIN_PERMISSIONS, 'tasks.selfReport'],
   EMPLOYEE: ['tasks.read', 'tasks.update', 'tasks.complete', 'tasks.selfReport', 'reports.read', 'reports.employee'],
 };

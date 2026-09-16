@@ -4,6 +4,7 @@ export * from './errors.js';
 export * from './time.js';
 export * from './domain/access.js';
 export * from './domain/tasks.js';
+export * from './domain/delegation.js';
 export * from './domain/workload.js';
 export * from './domain/views.js';
 export * from './schemas.js';

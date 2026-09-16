@@ -5,6 +5,8 @@ import {
   activityFeedQuerySchema,
   addDays,
   byRiskThenName,
+  isTeamManagerRole,
+  isTeamMemberRole,
   canReviewTask,
   canViewTask,
   completionRate,
@@ -38,9 +40,9 @@ import {
   activityEntry,
   actorFor,
   currentTeam,
+  managedTeamIds,
   db,
   findUser,
-  ownedTeams,
   summarizeTask,
   teamMembers,
   teamRef,
@@ -67,10 +69,13 @@ function resolveScope(user: SeedUser, filters: { teamId?: string; adminId?: stri
   if (user.role === 'SUPER_ADMIN') {
     teams = store.teams.filter((t) => t.isActive);
     people = store.users.filter((u) => u.role !== 'SUPER_ADMIN');
-  } else if (user.role === 'ADMIN') {
-    teams = ownedTeams(user.id);
+  } else if (isTeamManagerRole(user.role)) {
+    // A sub admin manages exactly the team they belong to; an admin, every team they own.
+    teams = managedTeamIds(user)
+      .map((id) => store.teams.find((t) => t.id === id))
+      .filter((t): t is SeedTeam => Boolean(t));
     const teamIds = teams.map((t) => t.id);
-    people = store.users.filter((u) => u.role === 'EMPLOYEE' && teamIds.includes(currentTeam(u.id)?.id ?? ''));
+    people = store.users.filter((u) => isTeamMemberRole(u.role) && teamIds.includes(currentTeam(u.id)?.id ?? ''));
   } else {
     teams = [];
     people = [user];
@@ -95,7 +100,7 @@ function resolveScope(user: SeedUser, filters: { teamId?: string; adminId?: stri
     teams = teams.filter((t) => t.id === currentTeam(person.id)?.id);
   }
 
-  const activePeople = people.filter((p) => p.isActive && p.role === 'EMPLOYEE').length;
+  const activePeople = people.filter((p) => p.isActive && isTeamMemberRole(p.role)).length;
   if (user.role === 'EMPLOYEE') {
     info = { kind: 'SELF', label: 'My work', detail: currentTeam(user.id)?.name ?? 'No team' };
   } else if (filters.employeeId) {
@@ -168,8 +173,9 @@ get('/dashboard/summary', ({ user, now }) => {
       user.role === 'EMPLOYEE'
         ? null
         : {
-            total: scope.people.filter((p) => p.role === 'EMPLOYEE').length,
-            active: scope.people.filter((p) => p.role === 'EMPLOYEE' && p.isActive).length,
+            // Sub admins still do the team's work, so they count as staff here too.
+            total: scope.people.filter((p) => isTeamMemberRole(p.role)).length,
+            active: scope.people.filter((p) => isTeamMemberRole(p.role) && p.isActive).length,
           },
     // Reviewers see what awaits their decision; employees see their own submissions still waiting.
     pendingReviews: db().tasks.filter(

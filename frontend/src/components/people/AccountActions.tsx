@@ -1,6 +1,6 @@
 'use client';
 
-import type { PasswordResetIssued } from '@zemp/shared';
+import { ROLE_LABELS, type PasswordResetIssued, type SystemRole } from '@zemp/shared';
 import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,14 +16,14 @@ interface Account {
   id: string;
   name: string;
   isActive: boolean;
-  role: 'ADMIN' | 'EMPLOYEE' | 'SUPER_ADMIN';
+  role: SystemRole;
 }
 
 /** Deactivate / reactivate with the consequence spelled out (Frontend.md §62). */
 export function AccountStatusDialog({ account, onClose }: { account: Account; onClose: () => void }) {
   const mutation = useSetAccountActive();
   const deactivating = account.isActive;
-  const noun = account.role === 'ADMIN' ? 'admin' : 'employee';
+  const noun = ROLE_LABELS[account.role].toLowerCase();
   return (
     <ConfirmDialog
       open

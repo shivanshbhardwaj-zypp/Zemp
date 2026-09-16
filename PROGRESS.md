@@ -36,6 +36,25 @@ user asked for it explicitly, so V0.1 now includes it. Decisions they confirmed:
 - Flow: submit → reviewer approves (counts) or asks for changes with a required note → author revises and
   resubmits. Only the chosen reviewer or a Super Admin decides; never the author.
 
+## Scope addition — Sub Admins (approved by the user, 16 Sep 2026)
+
+"Custom roles" is another requirements §39 candidate pulled into V0.1 on request: an admin promotes a
+member of a team they own to **Sub Admin**, a co-admin for that one team.
+
+- **Same permissions as an admin**, scoped by `domain/access.ts` to the team they belong to (their
+  managed team = their membership). They keep `tasks.selfReport` because they still do their own work.
+- **They stay a team member** (the user asked for "both"): still in the team roster, still counted in
+  team headcount and reports, with a real `SUB_ADMIN` role label everywhere.
+- **Limits:** cannot appoint other Sub Admins (delegation never chains), cannot create/edit/deactivate
+  people or edit the team, and **cannot manage their own admin's tasks** — `canManageTask` takes the
+  assignee's role for exactly this.
+- Only the team's owning admin and the Super Admin appoint or remove a Sub Admin (`users.delegate`).
+- Found and fixed during verification: the read model said `canEdit: false` on the admin's task, but the
+  mock handlers called the planners without `assigneeRole`, so the write path allowed the edit. The
+  argument is now **required** on `planTaskUpdate` / `planStatusChange` / `planReassign` /
+  `planProgressUpdate` and on `canManageTask`, so a caller cannot silently skip the check — a
+  regression test covers it (`domain/delegation.test.ts`). Phase B must pass it from the joined row.
+
 ## Decisions (implementation, low-risk defaults — revisit if the user disagrees)
 
 - **Admins** view and assign work in teams they own; creating, editing, moving and deactivating people is Super Admin only (requirements §3.1 vs §3.2). One permission-map change grants more.

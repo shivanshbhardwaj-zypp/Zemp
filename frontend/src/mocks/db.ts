@@ -86,6 +86,18 @@ export function currentTeam(userId: string): SeedTeam | null {
 
 export const ownedTeams = (userId: string) => db().teams.filter((t) => t.ownerId === userId && t.isActive);
 
+/**
+ * Teams a person manages: an admin's own teams, or — for a sub admin — the single team they belong
+ * to and were promoted in. Every scope check in @zemp/shared reads this list.
+ */
+export function managedTeamIds(u: SeedUser): string[] {
+  if (u.role === 'SUB_ADMIN') {
+    const team = currentTeam(u.id);
+    return team && team.isActive ? [team.id] : [];
+  }
+  return ownedTeams(u.id).map((t) => t.id);
+}
+
 /** Current members of a team whose accounts are active. */
 export const teamMembers = (teamId: string) =>
   db().users.filter((u) => u.isActive && currentTeam(u.id)?.id === teamId);
@@ -99,7 +111,7 @@ export const actorFor = (u: SeedUser): NamedActor => ({
   id: u.id,
   name: u.name,
   role: u.role,
-  ownedTeamIds: ownedTeams(u.id).map((t) => t.id),
+  ownedTeamIds: managedTeamIds(u),
 });
 
 export const candidateFor = (u: SeedUser): AssigneeCandidate => ({
@@ -108,7 +120,7 @@ export const candidateFor = (u: SeedUser): AssigneeCandidate => ({
   role: u.role,
   isActive: u.isActive,
   teamId: currentTeam(u.id)?.id ?? null,
-  ownedTeamIds: ownedTeams(u.id).map((t) => t.id),
+  ownedTeamIds: managedTeamIds(u),
 });
 
 export function sessionUser(u: SeedUser): SessionUser {
@@ -124,7 +136,10 @@ export function sessionUser(u: SeedUser): SessionUser {
     employeeCode: u.employeeCode,
     team: team ? teamRef(team) : null,
     manager: manager ? userRef(manager) : null,
-    ownedTeams: ownedTeams(u.id).map(teamRef),
+    ownedTeams: managedTeamIds(u)
+      .map((id) => findTeam(id))
+      .filter((t): t is SeedTeam => Boolean(t))
+      .map(teamRef),
     organization: db().organization,
   };
 }

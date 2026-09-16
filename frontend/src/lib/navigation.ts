@@ -57,7 +57,9 @@ export function navigationFor(user: SessionUser): Navigation {
         ],
         footer: [notifications, settings],
       };
+    // A Sub Admin co-runs one team, so they get the admin's navigation for that team.
     case 'ADMIN':
+    case 'SUB_ADMIN':
       return {
         main: [
           { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },

@@ -220,7 +220,13 @@ export interface EmployeeDetail extends EmployeeListItem {
   lastLoginAt: string | null;
   ownedTeams: TeamRef[];
   completedToday: number;
-  permissions: { canEdit: boolean; canChangeStatus: boolean; canResetPassword: boolean };
+  permissions: {
+    canEdit: boolean;
+    canChangeStatus: boolean;
+    canResetPassword: boolean;
+    /** The viewer may make this person a Sub Admin of their team, or return them to Employee. */
+    canDelegate: boolean;
+  };
 }
 
 export interface PeopleStats {
@@ -275,10 +281,14 @@ export interface TeamMemberItem {
   email: string;
   employeeCode: string | null;
   jobTitle: string | null;
+  /** EMPLOYEE, or SUB_ADMIN for a member promoted to co-run this team. */
+  role: SystemRole;
   isActive: boolean;
   joinedAt: string;
   workload: WorkloadSummary;
   risk: RiskLevel | null;
+  /** Whether the viewer may change this member's role here. */
+  canDelegate: boolean;
 }
 
 export interface OrgChartTeam extends TeamRef {

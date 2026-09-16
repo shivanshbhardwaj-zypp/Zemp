@@ -3,6 +3,7 @@ import {
   AUDIT_ACTIONS,
   AUDIT_RESOURCE_TYPES,
   AUDIT_RESULTS,
+  DELEGATABLE_ROLES,
   REVIEW_STATUSES,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -170,6 +171,9 @@ export const listReviewsQuerySchema = pageQuerySchema.extend({
   status: z.enum(REVIEW_STATUSES).default('PENDING'),
 });
 
+/** Promote a team member to Sub Admin, or return them to Employee. */
+export const changeRoleSchema = z.object({ role: z.enum(DELEGATABLE_ROLES) });
+
 export const TASK_SORT_FIELDS = ['dueAt', 'createdAt', 'updatedAt', 'priority', 'status', 'progress', 'title'] as const;
 export const DEADLINE_FILTERS = ['OVERDUE', 'DUE_TODAY', 'DUE_TOMORROW', 'UPCOMING'] as const;
 
@@ -333,6 +337,7 @@ export type SelfReportInputDto = z.output<typeof selfReportSchema>;
 export type ResubmitSelfReportInput = z.output<typeof resubmitSelfReportSchema>;
 export type ReviewDecisionInput = z.output<typeof reviewDecisionSchema>;
 export type ListReviewsQuery = z.output<typeof listReviewsQuerySchema>;
+export type ChangeRoleInput = z.output<typeof changeRoleSchema>;
 export type UpdateProgressInput = z.output<typeof updateProgressSchema>;
 export type ChangeStatusInput = z.output<typeof changeStatusSchema>;
 export type CreateCommentInput = z.output<typeof createCommentSchema>;

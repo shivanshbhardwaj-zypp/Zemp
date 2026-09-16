@@ -1,4 +1,4 @@
-import type { SystemRole, TaskOrigin } from '../enums.js';
+import { isTeamManagerRole, isTeamMemberRole, type SystemRole, type TaskOrigin } from '../enums.js';
 
 /**
  * Server-side scope rules (requirements §18): system role + team scope + resource ownership.
@@ -34,25 +34,41 @@ const ownsTeam = (actor: Actor, teamId: string | null) =>
 
 export function canViewTask(actor: Actor, task: TaskScope): boolean {
   if (actor.role === 'SUPER_ADMIN' || task.assigneeId === actor.id) return true;
-  return actor.role === 'ADMIN' && ownsTeam(actor, task.teamId);
+  return isTeamManagerRole(actor.role) && ownsTeam(actor, task.teamId);
 }
 
-/** Edit details, reassign, cancel or reopen. Work assigned to an admin is managed above them. */
-export function canManageTask(actor: Actor, task: TaskScope): boolean {
+/**
+ * Edit details, reassign, cancel or reopen. Work assigned to a manager is managed above them: an
+ * admin never manages their own tasks this way, and a sub admin never manages their admin's.
+ */
+export function canManageTask(actor: Actor, task: TaskScope, assigneeRole: SystemRole): boolean {
   if (actor.role === 'SUPER_ADMIN') return true;
-  return actor.role === 'ADMIN' && task.assigneeId !== actor.id && ownsTeam(actor, task.teamId);
+  if (!isTeamManagerRole(actor.role) || task.assigneeId === actor.id) return false;
+  // A sub admin runs the team's own work, never their admin's.
+  if (actor.role === 'SUB_ADMIN' && !isTeamMemberRole(assigneeRole)) return false;
+  return ownsTeam(actor, task.teamId);
 }
 
 /** Update progress and move a task through its working statuses. */
-export function canWorkOnTask(actor: Actor, task: TaskScope): boolean {
-  return task.assigneeId === actor.id || canManageTask(actor, task);
+export function canWorkOnTask(actor: Actor, task: TaskScope, assigneeRole: SystemRole): boolean {
+  return task.assigneeId === actor.id || canManageTask(actor, task, assigneeRole);
 }
 
-/** Super Admin → any admin or employee. Admin → employees of teams they own. Never yourself. */
+/** Super Admin → any admin, sub admin or employee. Team manager → members of their team. Never yourself. */
 export function canAssignTo(actor: Actor, candidate: AssigneeCandidate): boolean {
   if (candidate.id === actor.id || candidate.role === 'SUPER_ADMIN') return false;
   if (actor.role === 'SUPER_ADMIN') return true;
-  return actor.role === 'ADMIN' && candidate.role === 'EMPLOYEE' && ownsTeam(actor, candidate.teamId);
+  return isTeamManagerRole(actor.role) && isTeamMemberRole(candidate.role) && ownsTeam(actor, candidate.teamId);
+}
+
+/**
+ * Appointing a Sub Admin stays with the team's owning admin and the Super Admin: a sub admin cannot
+ * appoint more sub admins, so delegation never chains beyond the admin who granted it.
+ */
+export function canDelegateRole(actor: Actor, person: PersonScope): boolean {
+  if (person.id === actor.id || !isTeamMemberRole(person.role)) return false;
+  if (actor.role === 'SUPER_ADMIN') return true;
+  return actor.role === 'ADMIN' && ownsTeam(actor, person.teamId);
 }
 
 /** A self-reported task and the reviewer its author chose. */
@@ -76,21 +92,21 @@ export interface ReviewerCandidate {
 export function canReviewTask(actor: Actor, task: ReviewScope): boolean {
   if (task.origin !== 'SELF_REPORTED' || task.assigneeId === actor.id) return false;
   if (actor.role === 'SUPER_ADMIN') return true;
-  return actor.role === 'ADMIN' && task.reviewerId === actor.id;
+  return isTeamManagerRole(actor.role) && task.reviewerId === actor.id;
 }
 
-/** An employee may ask a Super Admin, or the admin who owns their team — never themselves. */
+/** A member may ask a Super Admin, or a manager of their team — never themselves. */
 export function canReviewFor(reviewer: ReviewerCandidate, employee: PersonScope): boolean {
   if (!reviewer.isActive || reviewer.id === employee.id) return false;
   if (reviewer.role === 'SUPER_ADMIN') return true;
-  return reviewer.role === 'ADMIN' && ownsTeam(reviewer, employee.teamId);
+  return isTeamManagerRole(reviewer.role) && ownsTeam(reviewer, employee.teamId);
 }
 
 export function canViewPerson(actor: Actor, person: PersonScope): boolean {
   if (actor.role === 'SUPER_ADMIN' || actor.id === person.id) return true;
-  return actor.role === 'ADMIN' && person.role === 'EMPLOYEE' && ownsTeam(actor, person.teamId);
+  return isTeamManagerRole(actor.role) && isTeamMemberRole(person.role) && ownsTeam(actor, person.teamId);
 }
 
 export function canViewTeam(actor: Actor, teamId: string): boolean {
-  return actor.role === 'SUPER_ADMIN' || (actor.role === 'ADMIN' && ownsTeam(actor, teamId));
+  return actor.role === 'SUPER_ADMIN' || (isTeamManagerRole(actor.role) && ownsTeam(actor, teamId));
 }

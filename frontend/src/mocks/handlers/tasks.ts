@@ -72,6 +72,9 @@ export function applyPlan(req: Request, now: Date, actor: NamedActor, task: Seed
   for (const entry of plan.audits) addAudit(req, now, actor.id, entry.action, 'TASK', task.id, entry.metadata);
 }
 
+/** Who the task belongs to — the manage rules need it (a sub admin may not run their admin's work). */
+const assigneeRoleOf = (task: SeedTask) => findUser(task.assigneeId)?.role ?? 'EMPLOYEE';
+
 const candidateById = (id: string) => {
   const user = findUser(id);
   // An unknown id looks exactly like an out-of-scope one.
@@ -193,6 +196,7 @@ patch('/tasks/:id', ({ req, user, params, body, now }) => {
   const plan = planTaskUpdate({
     actor,
     task,
+    assigneeRole: assigneeRoleOf(task),
     now,
     input: {
       title: input.title,
@@ -210,7 +214,7 @@ patch('/tasks/:id/progress', ({ req, user, params, body, now }) => {
   const input = parse(updateProgressSchema, body);
   const actor = actorFor(user);
   const task = loadTask(actor, params.id!);
-  applyPlan(req, now, actor, task, planProgressUpdate({ actor, task, progress: input.progress, now }));
+  applyPlan(req, now, actor, task, planProgressUpdate({ actor, task, progress: input.progress, assigneeRole: assigneeRoleOf(task), now }));
   return taskDetail(task, actor, now);
 });
 
@@ -218,7 +222,7 @@ patch('/tasks/:id/status', ({ req, user, params, body, now }) => {
   const input = parse(changeStatusSchema, body);
   const actor = actorFor(user);
   const task = loadTask(actor, params.id!);
-  applyPlan(req, now, actor, task, planStatusChange({ actor, task, to: input.status, note: input.note, now }));
+  applyPlan(req, now, actor, task, planStatusChange({ actor, task, to: input.status, note: input.note, assigneeRole: assigneeRoleOf(task), now }));
   return taskDetail(task, actor, now);
 });
 
@@ -227,7 +231,7 @@ patch('/tasks/:id/assignee', ({ req, user, params, body, now }) => {
   const input = parse(reassignTaskSchema, body);
   const actor = actorFor(user);
   const task = loadTask(actor, params.id!);
-  const plan = planReassign({ actor, task, assignee: candidateById(input.assigneeId), teamId: input.teamId });
+  const plan = planReassign({ actor, task, assignee: candidateById(input.assigneeId), teamId: input.teamId, assigneeRole: assigneeRoleOf(task) });
   applyPlan(req, now, actor, task, plan);
   return taskDetail(task, actor, now);
 });
