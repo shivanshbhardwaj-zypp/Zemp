@@ -7,7 +7,7 @@ Read this first (CLAUDE.md §2, §40). ZEMP is a separate project from `../YT&IG
 | Phase | Scope | Status |
 |---|---|---|
 | A | Complete frontend on a temporary mock API | **Done** (typecheck, lint, 47 tests, `next build`) |
-| B | NestJS backend (auth, RBAC, domain services, REST `/api/v1`) | Not started |
+| B | NestJS backend (auth, RBAC, domain services, REST `/api/v1`) | **Almost done** — every module but reports |
 | C | PostgreSQL + Prisma (schema, migrations, constraints, seed) | Not started |
 | D | Replace mock API with the real backend | Not started |
 | E | Testing, security review, hardening | Not started |
@@ -54,6 +54,30 @@ member of a team they own to **Sub Admin**, a co-admin for that one team.
   argument is now **required** on `planTaskUpdate` / `planStatusChange` / `planReassign` /
   `planProgressUpdate` and on `canManageTask`, so a caller cannot silently skip the check — a
   regression test covers it (`domain/delegation.test.ts`). Phase B must pass it from the joined row.
+
+## Phase B — backend status (16 Sep 2026)
+
+`backend/` is a running NestJS 12 API on `/api/v1`, seeded from `@zemp/shared/seed`, with 51 routes
+mapped. It is **ESM** (NestJS 12 and `@zemp/shared` are both ESM), so relative imports carry `.js`.
+
+**Done and verified live:** auth (argon2id, HttpOnly session + double-submit CSRF, change/reset
+password), tasks (list/filter/sort/page, create, update, progress, status, reassign, activity,
+comments), reviews (self-report, queue, approve/request changes, resubmit, reviewer options), people
+(employees, admins, account status, reset links, Sub Admin delegation), teams (+ members and org
+chart), notifications, audit log, settings, health (live/ready), Swagger at `/api/v1/docs`.
+
+**Cross-cutting:** request id + structured logs, throttling (tighter on auth), global auth guard
+(endpoints are protected unless marked `@Public()`), Zod validation from the shared schemas, the
+`{success, data, meta}` envelope, and an exception filter that maps `DomainError` to its status and
+never leaks a stack trace.
+
+**Still to write:** the **reports module** — `/dashboard/summary`, `/dashboard/attention`,
+`/reports/daily`, `/reports/progress`, `/activity`. Port `frontend/src/mocks/handlers/reports.ts`
+(`resolveScope`, `livePeople`/`liveTeams`, snapshot sums for past days) onto `StoreService`.
+
+**Phase C note:** `StoreService` is the only thing that touches data. Swapping it for Prisma-backed
+repositories is the whole of Phase C's integration work; services and controllers do not change.
+Sessions and password-reset tokens also move from maps to tables.
 
 ## Decisions (implementation, low-risk defaults — revisit if the user disagrees)
 
@@ -118,7 +142,7 @@ pnpm --filter @zemp/frontend lint
 pnpm --filter @zemp/frontend build
 ```
 
-**Next: Phase B** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
+**Next: finish Phase B** (the reports module), then **Phase C** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
 
 ## Demo data (from the user's `Demo_Data.xlsx`, 16 Sep 2026)
 

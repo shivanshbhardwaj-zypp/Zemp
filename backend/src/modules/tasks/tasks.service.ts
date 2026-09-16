@@ -45,7 +45,7 @@ export class TasksService {
    * Applies a planner's output: the patch, the activity trail, the notifications and the audit
    * entries land together. Phase C wraps this in a database transaction.
    */
-  private applyPlan(task: SeedTask, actor: NamedActor, plan: TaskPlan, client: ClientContext, now: Date): void {
+  applyPlan(task: SeedTask, actor: NamedActor, plan: TaskPlan, client: ClientContext, now: Date): void {
     const changes = { ...plan.patch };
     delete changes.resetDeadlineReminders; // A planner flag, not a stored column.
     Object.assign(task, changes);

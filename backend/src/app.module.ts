@@ -9,7 +9,11 @@ import { CONFIG, type AppConfig } from './config/env.js';
 import { DataModule } from './data/data.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthController } from './modules/health/health.controller.js';
+import { InboxModule } from './modules/inbox/inbox.module.js';
+import { PeopleModule } from './modules/people/people.module.js';
+import { ReviewsModule } from './modules/reviews/reviews.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
+import { TeamsModule } from './modules/teams/teams.module.js';
 
 /**
  * Cross-cutting behaviour is registered once, globally, so no endpoint can forget it:
@@ -30,6 +34,10 @@ import { TasksModule } from './modules/tasks/tasks.module.js';
     }),
     AuthModule,
     TasksModule,
+    ReviewsModule,
+    PeopleModule,
+    TeamsModule,
+    InboxModule,
   ],
   controllers: [HealthController],
   providers: [
