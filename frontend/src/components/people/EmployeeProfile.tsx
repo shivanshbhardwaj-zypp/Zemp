@@ -75,7 +75,7 @@ export function EmployeeProfile({ id }: { id: string }) {
             <ActiveBadge active={e.isActive} />
           </div>
           <p className="mt-1 text-sm text-ink-secondary">
-            {[e.jobTitle, e.team?.name, e.employeeCode].filter(Boolean).join(' • ')}
+            {[e.jobTitle, e.team?.name, e.employeeCode, e.phone].filter(Boolean).join(' • ')}
           </p>
           <p className="mt-1 text-meta text-ink-muted">
             {ROLE_LABELS[e.role]} · {e.email}

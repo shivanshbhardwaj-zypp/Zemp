@@ -16,28 +16,28 @@ import {
   ADMIN_TASKS,
   BLOCK_REASONS,
   COMMENT_PAIRS,
-  SELF_REPORTS,
   COMPLETION_NOTES,
+  DEMO_TEAM,
   DESCRIPTIONS,
-  INACTIVE_EMPLOYEE,
-  MOVED_EMPLOYEE,
   ORGANIZATION,
-  SPRINT_AREAS,
-  SPRINT_DAILY_COMPLETIONS,
-  SPRINT_EMPLOYEES,
-  SUPER_ADMIN,
-  TEAMS,
-  UNOWNED_TEAM,
+  PEOPLE,
+  SELF_REPORTS,
+  TEAM_TASKS,
+  type SeedPerson,
 } from './catalog.js';
 
 /**
- * Deterministic demo organization (requirements §36): 1 Super Admin, 3 Admins, 10 employees per
- * admin, teams, tasks with a realistic history, comments, notifications, audit entries and daily
- * progress snapshots. Dates are relative to `now`. Used by the mock API and the database seed.
+ * Deterministic demo organization, seeded from the customer's Demo_Data sheet: the CXO team with its
+ * Super Admins, admin and employees, plus tasks with a realistic history, comments, notifications,
+ * audit entries and daily progress snapshots so the dashboards and reports have something to show.
+ * Dates are relative to `now`. Used by the mock API and the database seed.
  */
 
-/** Development-only password shared by every seeded account. Never used outside seed data. */
-export const DEMO_PASSWORD = 'ZempDemo#2026';
+/**
+ * Development-only password shared by every seeded account, as given in the sheet. Seed data only —
+ * it does not satisfy the app's own password rule, so changing it in-app requires a stronger one.
+ */
+export const DEMO_PASSWORD = '1234567890';
 
 export interface SeedUser {
   id: string;
@@ -47,6 +47,7 @@ export interface SeedUser {
   isActive: boolean;
   jobTitle: string;
   employeeCode: string;
+  phone: string | null;
   createdAt: Date;
   lastLoginAt: Date | null;
 }
@@ -226,16 +227,16 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
   const notify = (userId: string, type: NotificationType, title: string, body: string, taskId: string | null, createdAt: Date) =>
     notifications.push({ id: id(), userId, type, title, body, taskId, readAt: null, createdAt });
 
-  let employeeNumber = 0;
-  const addUser = (name: string, email: string, role: SystemRole, jobTitle: string, createdAt: Date): SeedUser => {
+  const addUser = (definition: SeedPerson, createdAt: Date): SeedUser => {
     const user: SeedUser = {
       id: id(),
-      email,
-      name,
-      role,
+      email: definition.email,
+      name: definition.name,
+      role: definition.role,
       isActive: true,
-      jobTitle,
-      employeeCode: `ZMP-${String(++employeeNumber).padStart(4, '0')}`,
+      jobTitle: definition.jobTitle,
+      employeeCode: definition.employeeCode,
+      phone: definition.phone,
       createdAt,
       lastLoginAt: null,
     };
@@ -243,65 +244,47 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
     return user;
   };
 
-  // ── Organization, admins, teams, people ──────────────────────────────────
-  const john = addUser(SUPER_ADMIN.name, SUPER_ADMIN.email, 'SUPER_ADMIN', SUPER_ADMIN.jobTitle, at(-45, '10:00'));
-  audit(john.id, 'SETTINGS_UPDATED', 'ORGANIZATION', null, at(-45, '10:20'), { timezone: timeZone, name: ORGANIZATION.name });
-
-  const teamOf = new Map<string, SeedTeam>();
-  const membersOf = new Map<string, SeedUser[]>();
-  const adminOf = new Map<string, SeedUser>();
-  const titlesOf = new Map<string, readonly string[]>();
-
-  TEAMS.forEach((definition, index) => {
-    const createdAt = at(-44, hhmm(10 + index, 0));
-    const admin = addUser(definition.admin.name, definition.admin.email, 'ADMIN', definition.admin.jobTitle, createdAt);
-    audit(john.id, 'USER_CREATED', 'USER', admin.id, createdAt, { role: 'ADMIN', name: admin.name });
-    const team: SeedTeam = {
-      id: id(),
-      name: definition.name,
-      description: definition.description,
-      ownerId: admin.id,
-      isActive: true,
-      createdAt,
-      updatedAt: createdAt,
-    };
-    teams.push(team);
-    audit(john.id, 'TEAM_CREATED', 'TEAM', team.id, createdAt, { name: team.name, ownerId: admin.id });
-    adminOf.set(team.id, admin);
-    titlesOf.set(team.id, definition.tasks);
-    membersOf.set(team.id, []);
-    for (const [name, jobTitle] of definition.members) {
-      const joinedAt = at(-43 + int(0, 2), hhmm(11 + int(0, 4)));
-      const user = addUser(name, emailFor(name), 'EMPLOYEE', jobTitle, joinedAt);
-      audit(john.id, 'USER_CREATED', 'USER', user.id, joinedAt, { role: 'EMPLOYEE', name, teamId: team.id });
-      memberships.push({ id: id(), teamId: team.id, userId: user.id, joinedAt, leftAt: null });
-      teamOf.set(user.id, team);
-      membersOf.get(team.id)!.push(user);
-    }
+  // ── Organization, people and the one team ────────────────────────────────
+  const person = new Map<string, SeedUser>();
+  let createdAt = at(-45, '10:00');
+  for (const definition of PEOPLE) {
+    createdAt = new Date(createdAt.getTime() + 20 * 60_000);
+    person.set(definition.name, addUser(definition, createdAt));
+  }
+  const owner = PEOPLE.find((p) => p.ownsTeam);
+  const platformAdmin = person.get(PEOPLE[0]!.name)!;
+  const teamAdmin = person.get(owner!.name)!;
+  audit(platformAdmin.id, 'SETTINGS_UPDATED', 'ORGANIZATION', null, at(-45, '10:20'), {
+    timezone: timeZone,
+    name: ORGANIZATION.name,
   });
+  for (const definition of PEOPLE.slice(1)) {
+    const user = person.get(definition.name)!;
+    audit(platformAdmin.id, 'USER_CREATED', 'USER', user.id, user.createdAt, { role: definition.role, name: user.name });
+  }
 
-  const byName = (name: string) => users.find((u) => u.name === name)!;
-  const [engineering, marketing] = teams as [SeedTeam, SeedTeam, SeedTeam];
-
-  // Zara joined Marketing and moved to Product Engineering ten days ago.
-  const zara = byName(MOVED_EMPLOYEE);
-  const zaraMembership = memberships.find((m) => m.userId === zara.id)!;
-  const movedAt = at(-10, '09:30');
-  memberships.push({ id: id(), teamId: marketing.id, userId: zara.id, joinedAt: zaraMembership.joinedAt, leftAt: movedAt });
-  zaraMembership.joinedAt = movedAt;
-  audit(john.id, 'TEAM_MEMBER_MOVED', 'USER', zara.id, movedAt, { fromTeamId: marketing.id, toTeamId: engineering.id });
-
-  const designStudio: SeedTeam = {
+  const teamCreatedAt = at(-44, '10:00');
+  const team: SeedTeam = {
     id: id(),
-    name: UNOWNED_TEAM.name,
-    description: UNOWNED_TEAM.description,
-    ownerId: null,
+    name: DEMO_TEAM.name,
+    description: DEMO_TEAM.description,
+    ownerId: teamAdmin.id,
     isActive: true,
-    createdAt: at(-2, '15:00'),
-    updatedAt: at(-2, '15:00'),
+    createdAt: teamCreatedAt,
+    updatedAt: teamCreatedAt,
   };
-  teams.push(designStudio);
-  audit(john.id, 'TEAM_CREATED', 'TEAM', designStudio.id, designStudio.createdAt, { name: designStudio.name, ownerId: null });
+  teams.push(team);
+  audit(platformAdmin.id, 'TEAM_CREATED', 'TEAM', team.id, teamCreatedAt, { name: team.name, ownerId: teamAdmin.id });
+
+  const members: SeedUser[] = [];
+  for (const definition of PEOPLE.filter((p) => p.inTeam)) {
+    const user = person.get(definition.name)!;
+    const joinedAt = new Date(Math.max(teamCreatedAt.getTime(), user.createdAt.getTime()) + 30 * 60_000);
+    memberships.push({ id: id(), teamId: team.id, userId: user.id, joinedAt, leftAt: null });
+    members.push(user);
+  }
+  /** The people the team's work is assigned to — its employees and any sub admins. */
+  const staff = PEOPLE.filter((p) => p.inTeam && p.role === 'EMPLOYEE').map((p) => person.get(p.name)!);
 
   // ── Tasks with history ───────────────────────────────────────────────────
   const log = (task: SeedTask, actorId: string, type: TaskActivityType, createdAt: Date, fromValue: string | null = null, toValue: string | null = null, note: string | null = null) => {
@@ -415,92 +398,49 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
     return r < 0.28 ? 'done' : r < 0.7 ? 'open' : r < 0.8 ? 'blocked' : r < 0.97 ? 'todo' : 'cancelled';
   };
 
-  const regularTasks = (assignee: SeedUser, team: SeedTeam, count: number, earliestDay = -14, latestDay = 0) => {
-    const admin = adminOf.get(team.id)!;
-    const titles = titlesOf.get(team.id)!;
-    for (let i = 0; i < count; i++) {
-      const createdDay = int(earliestDay, latestDay);
-      const createdAt = past(at(createdDay, hhmm(int(9, 16))));
-      const dueAt = zonedTimeToUtc(addDays(dayKey(createdAt, timeZone), int(1, 8)), '18:00', timeZone);
-      createTask({ title: pick(titles), assignee, assignor: admin, teamId: team.id, createdAt, dueAt, outcome: outcomeFor(dueAt) });
-    }
-  };
-
-  // The requirements §10 sprint: 30 tasks each for three engineers, five days to finish.
-  const rock = adminOf.get(engineering.id)!;
-  const sprintStart = at(-3, '09:00');
-  const sprintDue = at(2, '18:00');
-  SPRINT_EMPLOYEES.forEach((name, person) => {
-    const assignee = byName(name);
-    const schedule = SPRINT_DAILY_COMPLETIONS[person]!;
-    let n = 0;
-    schedule.forEach((count, day) => {
-      for (let i = 0; i < count; i++) {
-        n++;
-        const completedAt = at(day - 3, hhmm(10 + Math.floor((i * 8) / Math.max(count, 1))));
-        createTask({
-          title: `Regression check ${String(n).padStart(2, '0')}: ${SPRINT_AREAS[n % SPRINT_AREAS.length]}`,
-          assignee,
-          assignor: rock,
-          teamId: engineering.id,
-          createdAt: sprintStart,
-          dueAt: sprintDue,
-          outcome: completedAt < now ? 'done' : 'open',
-          completedAt,
-        });
-      }
-    });
-    while (n < 30) {
-      n++;
+  // Day-to-day work the team admin assigns to the team.
+  let titleIndex = 0;
+  for (const assignee of staff) {
+    for (let i = 0; i < 9; i++) {
+      const createdDay = int(-14, 0);
+      const startedAt = past(at(createdDay, hhmm(int(9, 16))));
+      const dueAt = zonedTimeToUtc(addDays(dayKey(startedAt, timeZone), int(1, 8)), '18:00', timeZone);
       createTask({
-        title: `Regression check ${String(n).padStart(2, '0')}: ${SPRINT_AREAS[n % SPRINT_AREAS.length]}`,
+        title: TEAM_TASKS[titleIndex++ % TEAM_TASKS.length]!,
         assignee,
-        assignor: rock,
-        teamId: engineering.id,
-        createdAt: sprintStart,
-        dueAt: sprintDue,
-        outcome: chance(0.35) ? 'open' : 'todo',
-        progress: int(10, 60),
+        assignor: teamAdmin,
+        teamId: team.id,
+        createdAt: startedAt,
+        dueAt,
+        outcome: outcomeFor(dueAt),
       });
     }
-  });
-
-  const liam = byName(INACTIVE_EMPLOYEE);
-  for (const team of teams) {
-    for (const member of membersOf.get(team.id) ?? []) {
-      if (SPRINT_EMPLOYEES.includes(member.name as (typeof SPRINT_EMPLOYEES)[number])) regularTasks(member, team, 2, -6, 0);
-      else if (member.id === zara.id) regularTasks(member, team, int(5, 7), -9, 0);
-      else if (member.id === liam.id) regularTasks(member, team, 6, -14, -6);
-      else regularTasks(member, team, int(6, 10));
-    }
   }
 
-  // Work assigned by the Super Admin to each admin.
-  for (const team of teams.filter((t) => t.ownerId)) {
-    const admin = adminOf.get(team.id)!;
-    for (let i = 0; i < 3; i++) {
-      const createdAt = past(at(-int(1, 12), hhmm(int(10, 15))));
-      const dueAt = zonedTimeToUtc(addDays(dayKey(createdAt, timeZone), int(3, 10)), '18:00', timeZone);
-      createTask({ title: ADMIN_TASKS[(i + teams.indexOf(team)) % ADMIN_TASKS.length]!, assignee: admin, assignor: john, teamId: team.id, createdAt, dueAt, outcome: outcomeFor(dueAt) });
-    }
+  // Work the Super Admin assigns to the team's admin.
+  for (let i = 0; i < 4; i++) {
+    const startedAt = past(at(-int(1, 12), hhmm(int(10, 15))));
+    const dueAt = zonedTimeToUtc(addDays(dayKey(startedAt, timeZone), int(3, 10)), '18:00', timeZone);
+    createTask({
+      title: ADMIN_TASKS[i % ADMIN_TASKS.length]!,
+      assignee: teamAdmin,
+      assignor: platformAdmin,
+      teamId: team.id,
+      createdAt: startedAt,
+      dueAt,
+      outcome: outcomeFor(dueAt),
+    });
   }
 
-  // Liam was deactivated with two tasks still open.
-  const deactivatedAt = at(-5, '16:00');
-  liam.isActive = false;
-  audit(john.id, 'USER_DEACTIVATED', 'USER', liam.id, deactivatedAt, { reason: 'Left the company' });
-
-  // A few early reassignments inside each team.
-  for (const team of teams.filter((t) => t.ownerId)) {
-    const members = membersOf.get(team.id)!.filter((m) => m.isActive);
-    const candidates = tasks.filter((t) => t.teamId === team.id && t.status !== 'CANCELLED' && t.assignorId !== john.id && !t.title.startsWith('Regression'));
+  // A couple of reassignments inside the team, so the history is not uniform.
+  if (staff.length > 1) {
+    const candidates = tasks.filter((t) => t.status !== 'CANCELLED' && t.assignorId === teamAdmin.id);
     for (let i = 0; i < 2 && candidates.length; i++) {
       const task = candidates.splice(Math.floor(rand() * candidates.length), 1)[0]!;
-      const previous = pick(members.filter((m) => m.id !== task.assigneeId));
+      const previous = pick(staff.filter((m) => m.id !== task.assigneeId));
       const reassignedAt = after(task.createdAt, 20 * 60_000);
-      const admin = adminOf.get(team.id)!;
-      activities.push({ id: id(), taskId: task.id, actorId: admin.id, type: 'REASSIGNED', fromValue: previous.id, toValue: task.assigneeId, note: null, createdAt: reassignedAt });
-      audit(admin.id, 'TASK_REASSIGNED', 'TASK', task.id, reassignedAt, { from: previous.id, to: task.assigneeId, teamId: team.id });
+      activities.push({ id: id(), taskId: task.id, actorId: teamAdmin.id, type: 'REASSIGNED', fromValue: previous.id, toValue: task.assigneeId, note: null, createdAt: reassignedAt });
+      audit(teamAdmin.id, 'TASK_REASSIGNED', 'TASK', task.id, reassignedAt, { from: previous.id, to: task.assigneeId, teamId: team.id });
     }
   }
 
@@ -532,7 +472,7 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
     decision?: { approved: boolean; note: string | null };
   }) => {
     const submittedAt = after(p.completedAt, int(20, 90) * 60_000);
-    const team = teams.find((t) => (membersOf.get(t.id) ?? []).some((m) => m.id === p.author.id));
+    const authorTeam = memberships.find((m) => m.userId === p.author.id && !m.leftAt);
     const task: SeedTask = {
       id: id(),
       title: p.title,
@@ -599,12 +539,10 @@ export function generateSeed(options: { now?: Date; timeZone?: string } = {}): S
   };
 
   for (const [index, sample] of SELF_REPORTS.entries()) {
-    const team = teams[index % teams.length]!;
-    const author = (membersOf.get(team.id) ?? []).find((m) => m.isActive);
+    const author = staff[index % staff.length];
     if (!author) continue;
-    const admin = adminOf.get(team.id);
     // Alternate between the team admin and the Super Admin, so both review queues have work.
-    const reviewer = sample.toSuperAdmin || !admin ? john : admin;
+    const reviewer = sample.toSuperAdmin ? platformAdmin : teamAdmin;
     selfReport({
       author,
       reviewer,

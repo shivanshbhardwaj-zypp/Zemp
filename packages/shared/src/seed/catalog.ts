@@ -1,144 +1,98 @@
-/** Synthetic demo organization. Every name, email and task here is invented seed data. */
+/**
+ * Demo organization seeded from the customer's Demo_Data sheet. These are demo accounts for a local
+ * environment — the shared password below is seed data and must never be used in a real deployment.
+ */
+import type { SystemRole } from '../enums.js';
 
 export const ORGANIZATION = { name: 'ZEMP Demo Co.', timezone: 'Asia/Kolkata' };
 
-export const SUPER_ADMIN = { name: 'John Carter', email: 'john@zemp.test', jobTitle: 'Head of Operations' };
+export const DEMO_TEAM = { name: 'CXO', description: 'Leadership team.' };
 
-interface TeamDefinition {
-  key: 'engineering' | 'marketing' | 'operations';
+export interface SeedPerson {
   name: string;
-  description: string;
-  admin: { name: string; email: string; jobTitle: string };
-  members: ReadonlyArray<readonly [name: string, jobTitle: string]>;
-  tasks: readonly string[];
+  email: string;
+  employeeCode: string;
+  phone: string | null;
+  role: SystemRole;
+  jobTitle: string;
+  /** Members of the CXO team; the Super Admin who runs the platform has no team. */
+  inTeam: boolean;
+  /** The admin who owns the team. */
+  ownsTeam?: boolean;
 }
 
-export const TEAMS: readonly TeamDefinition[] = [
+/**
+ * From the sheet. "Super Admin/Admin" (Dipro) is seeded as a Super Admin who is also on the CXO
+ * team: Super Admin already carries every admin power, so that one account both runs the
+ * organization and works inside CXO. Shivansh is the team's own admin and owns it.
+ */
+export const PEOPLE: readonly SeedPerson[] = [
   {
-    key: 'engineering',
-    name: 'Product Engineering',
-    description: 'Builds and maintains the customer apps and internal tools.',
-    admin: { name: 'Rock Alvarez', email: 'rock@zemp.test', jobTitle: 'Engineering Manager' },
-    members: [
-      ['Aarav Shah', 'Software Engineer'],
-      ['Priya Nair', 'QA Engineer'],
-      ['Daniel Kim', 'Software Engineer'],
-      ['Meera Iyer', 'Frontend Engineer'],
-      ['Lucas Ferreira', 'Backend Engineer'],
-      ['Hana Sato', 'Mobile Engineer'],
-      ['Omar Haddad', 'DevOps Engineer'],
-      ['Ishita Rao', 'QA Engineer'],
-      ['Noah Williams', 'Software Engineer'],
-      ['Zara Ahmed', 'Product Designer'],
-    ],
-    tasks: [
-      'Fix pagination on the invoices list',
-      'Write API tests for the payments flow',
-      'Refactor the notification service',
-      'Review pull requests for the release branch',
-      'Add CSV export to the reports screen',
-      'Improve dashboard load time',
-      'Set up error monitoring alerts',
-      'Document the local development setup',
-      'Migrate nightly jobs to the scheduler',
-      'Accessibility pass on the checkout form',
-      'Harden rate limiting on the login endpoint',
-      'Update the mobile app splash screen',
-      'Investigate slow search queries',
-      'Clean up unused feature flags',
-      'Prepare release notes for v2.4',
-    ],
+    name: 'Test User',
+    email: 'test@example.com',
+    employeeCode: 'MOB0000',
+    phone: '1111122222',
+    role: 'SUPER_ADMIN',
+    jobTitle: 'Super Admin',
+    inTeam: false,
   },
   {
-    key: 'marketing',
-    name: 'Marketing',
-    description: 'Campaigns, content, brand and partnerships.',
-    admin: { name: 'Bruce Tan', email: 'bruce@zemp.test', jobTitle: 'Marketing Manager' },
-    members: [
-      ['Sofia Rossi', 'Content Strategist'],
-      ['Arjun Mehta', 'Performance Marketer'],
-      ['Chloe Martin', 'Brand Designer'],
-      ['Kabir Singh', 'Social Media Executive'],
-      ['Emily Johnson', 'Copywriter'],
-      ['Ravi Kumar', 'SEO Specialist'],
-      ['Aisha Bello', 'Marketing Analyst'],
-      ['Mateo Garcia', 'Video Editor'],
-      ['Nisha Patel', 'Events Coordinator'],
-      ["Liam O'Brien", 'Partnerships Executive'],
-    ],
-    tasks: [
-      'Draft the October newsletter',
-      'Plan the festive campaign calendar',
-      'Refresh landing page copy',
-      'Compile a competitor pricing review',
-      'Schedule social posts for the week',
-      'Brief the designer on the product video',
-      'Analyze last month’s campaign performance',
-      'Update the brand guidelines deck',
-      'Coordinate the partner webinar',
-      'Write a customer case study',
-      'Audit website SEO metadata',
-      'Edit the testimonial video cut',
-      'Prepare the trade show booth checklist',
-      'Review ad spend against budget',
-      'Collect quotes for the product brochure',
-    ],
+    name: 'Dipro',
+    email: 'dipro@example.com',
+    employeeCode: 'MOB0001',
+    phone: '7003034813',
+    role: 'SUPER_ADMIN',
+    jobTitle: 'Super Admin · CXO',
+    inTeam: true,
   },
   {
-    key: 'operations',
-    name: 'Customer Operations',
-    description: 'Support, logistics, billing and vendor relationships.',
-    admin: { name: 'Clark Mensah', email: 'clark@zemp.test', jobTitle: 'Operations Manager' },
-    members: [
-      ['Ananya Das', 'Support Lead'],
-      ['Ethan Brooks', 'Support Specialist'],
-      ['Fatima Khan', 'Operations Associate'],
-      ['Rohan Verma', 'Logistics Coordinator'],
-      ['Grace Lee', 'Support Specialist'],
-      ['Vikram Joshi', 'Vendor Manager'],
-      ['Maya Cohen', 'Quality Analyst'],
-      ['Samuel Okafor', 'Operations Associate'],
-      ['Leila Nasser', 'Billing Specialist'],
-      ['Tomás Silva', 'Field Coordinator'],
-    ],
-    tasks: [
-      'Resolve escalated support tickets',
-      'Audit this month’s vendor invoices',
-      'Update the service SLA document',
-      'Prepare the weekly operations report',
-      'Train new support hires on refunds',
-      'Reconcile warehouse inventory counts',
-      'Merge duplicate customer records',
-      'Review pending refund requests',
-      'Plan next week’s shift roster',
-      'Call back customers who cancelled',
-      'Renew the courier contract',
-      'Update support macros for new pricing',
-      'Check delivery delays in the north region',
-      'Verify billing addresses for enterprise accounts',
-      'Prepare the quarterly vendor scorecard',
-    ],
+    name: 'Shivansh',
+    email: 'shivansh@example.com',
+    employeeCode: 'MOB0002',
+    phone: '7895552243',
+    role: 'ADMIN',
+    jobTitle: 'Admin · CXO',
+    inTeam: true,
+    ownsTeam: true,
+  },
+  {
+    name: 'Neeraj',
+    email: 'neeraj@example.com',
+    employeeCode: 'MOB0003',
+    phone: '9915915136',
+    role: 'EMPLOYEE',
+    jobTitle: 'Team Member',
+    inTeam: true,
+  },
+  {
+    name: 'Saurav',
+    email: 'saurav@example.com',
+    employeeCode: 'MOB0004',
+    phone: '1111122222',
+    role: 'EMPLOYEE',
+    jobTitle: 'Team Member',
+    inTeam: true,
   },
 ];
 
-/** Moved from Marketing to Product Engineering ten days ago — demonstrates team history. */
-export const MOVED_EMPLOYEE = 'Zara Ahmed';
-/** Deactivated five days ago with unfinished work still assigned. */
-export const INACTIVE_EMPLOYEE = "Liam O'Brien";
-/** The 30-task, 5-day sprint from requirements §10, assigned to the first three engineers. */
-export const SPRINT_EMPLOYEES = ['Aarav Shah', 'Priya Nair', 'Daniel Kim'] as const;
-/** Completions per day of the sprint (day 1, 2, 3, today) — cumulative 4/10/18, 2/7/13, 0/4/9. */
-export const SPRINT_DAILY_COMPLETIONS: readonly (readonly number[])[] = [
-  [4, 6, 8, 3],
-  [2, 5, 6, 2],
-  [0, 4, 5, 2],
+/** Work the CXO team hands out day to day. */
+export const TEAM_TASKS = [
+  'Prepare the weekly leadership update',
+  'Review the monthly operations report',
+  'Follow up on pending vendor payments',
+  'Collect headcount requests from each function',
+  'Draft the quarterly board summary',
+  'Check outstanding customer escalations',
+  'Update the hiring tracker',
+  'Reconcile last month’s expenses',
+  'Plan the next town hall agenda',
+  'Review the product roadmap changes',
+  'Chase overdue partner agreements',
+  'Summarise this week’s revenue numbers',
+  'Prepare slides for the investor call',
+  'Audit access for departing contractors',
+  'Refresh the on-call rota',
 ];
-export const SPRINT_AREAS = ['Login', 'Checkout', 'Invoices', 'Reports', 'Settings', 'Notifications'];
-
-export const UNOWNED_TEAM = {
-  name: 'Design Studio',
-  description: 'New team being set up — no admin or members yet.',
-};
 
 export const ADMIN_TASKS = [
   'Prepare the Q4 headcount plan',

@@ -73,6 +73,7 @@ function employeeDetail(u: SeedUser, viewer: SeedUser, now: Date): EmployeeDetai
   const tasks = tasksFor(u.id, actor);
   return {
     ...employeeItem(u, actor, now),
+    phone: u.phone,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     ownedTeams: ownedTeams(u.id).map(teamRef),
     completedToday: countInDay(tasks.map((t) => (t.status === 'COMPLETED' ? t.completedAt : null)), now, zone()),
@@ -165,6 +166,7 @@ post('/employees', ({ req, user, body, now }) => {
     isActive: true,
     jobTitle: input.jobTitle,
     employeeCode: input.employeeCode,
+    phone: null,
     createdAt: now,
     lastLoginAt: null,
   };
@@ -283,6 +285,7 @@ post('/admins', ({ req, user, body, now }) => {
     isActive: true,
     jobTitle: input.jobTitle,
     employeeCode: input.employeeCode,
+    phone: null,
     createdAt: now,
     lastLoginAt: null,
   };

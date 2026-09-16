@@ -117,11 +117,13 @@ export function LoginForm() {
   );
 }
 
-const DEMO_PASSWORD = 'ZempDemo#2026';
+const DEMO_PASSWORD = '1234567890';
 const DEMO_ACCOUNTS = [
-  { email: 'john@zemp.test', label: 'John Carter', role: 'Super Admin' },
-  { email: 'rock@zemp.test', label: 'Rock Alvarez', role: 'Admin' },
-  { email: 'aarav.shah@zemp.test', label: 'Aarav Shah', role: 'Employee' },
+  { email: 'test@example.com', label: 'Test User', role: 'Super Admin' },
+  { email: 'dipro@example.com', label: 'Dipro', role: 'Super Admin · CXO' },
+  { email: 'shivansh@example.com', label: 'Shivansh', role: 'Admin' },
+  { email: 'neeraj@example.com', label: 'Neeraj', role: 'Employee' },
+  { email: 'saurav@example.com', label: 'Saurav', role: 'Employee' },
 ];
 
 function DemoAccounts({ onPick }: { onPick: (email: string) => void }) {

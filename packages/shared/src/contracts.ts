@@ -217,6 +217,8 @@ export interface EmployeeListItem {
 }
 
 export interface EmployeeDetail extends EmployeeListItem {
+  /** Contact number from the personnel record, when one is on file. */
+  phone: string | null;
   lastLoginAt: string | null;
   ownedTeams: TeamRef[];
   completedToday: number;

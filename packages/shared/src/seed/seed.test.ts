@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { summarizeWorkload } from '../domain/workload.js';
+import { PEOPLE } from './catalog.js';
 import { DEMO_PASSWORD, generateSeed } from './index.js';
 
 const TZ = 'Asia/Kolkata';
@@ -8,15 +9,27 @@ const seed = generateSeed({ now, timeZone: TZ });
 const person = (name: string) => seed.users.find((u) => u.name === name)!;
 
 describe('demo seed', () => {
-  it('builds the hierarchy from requirements §36', () => {
-    const count = (role: string) => seed.users.filter((u) => u.role === role).length;
-    expect([count('SUPER_ADMIN'), count('ADMIN'), count('EMPLOYEE')]).toEqual([1, 3, 30]);
-    for (const team of seed.teams.filter((t) => t.ownerId)) {
-      expect(seed.memberships.filter((m) => m.teamId === team.id && !m.leftAt)).toHaveLength(10);
-    }
+  it('seeds exactly the people from the Demo_Data sheet', () => {
+    expect(seed.users.map((u) => u.name)).toEqual(PEOPLE.map((p) => p.name));
+    expect(seed.users.map((u) => [u.email, u.employeeCode, u.role])).toEqual(
+      PEOPLE.map((p) => [p.email, p.employeeCode, p.role]),
+    );
+    expect(person('Dipro').role).toBe('SUPER_ADMIN'); // "Super Admin/Admin" on the sheet
+    expect(person('Shivansh').role).toBe('ADMIN');
     expect(new Set(seed.users.map((u) => u.email)).size).toBe(seed.users.length);
     expect(new Set(seed.users.map((u) => u.employeeCode)).size).toBe(seed.users.length);
-    expect(DEMO_PASSWORD.length).toBeGreaterThanOrEqual(10);
+    expect(DEMO_PASSWORD).toBe('1234567890');
+  });
+
+  it('puts the CXO team under its admin, with every other member in it', () => {
+    expect(seed.teams).toHaveLength(1);
+    const team = seed.teams[0]!;
+    expect(team.name).toBe('CXO');
+    expect(team.ownerId).toBe(person('Shivansh').id);
+    const members = seed.memberships.filter((m) => m.teamId === team.id && !m.leftAt).map((m) => m.userId);
+    expect(members).toEqual(PEOPLE.filter((p) => p.inTeam).map((p) => person(p.name).id));
+    // The platform Super Admin runs the organization rather than sitting in a team.
+    expect(members).not.toContain(person('Test User').id);
   });
 
   it('is deterministic for a given moment', () => {
@@ -25,18 +38,13 @@ describe('demo seed', () => {
     expect(shape(again)).toEqual(shape(seed));
   });
 
-  it('replays the 30-task sprint from requirements §10', () => {
-    const aarav = person('Aarav Shah');
-    const sprint = seed.tasks.filter((t) => t.assigneeId === aarav.id && t.title.startsWith('Regression'));
-    expect(sprint).toHaveLength(30);
-    // Completed before midnight IST (18:30 UTC) at the end of sprint days 1, 2 and 3.
-    const doneBy = (utcMidnightIst: string) =>
-      sprint.filter((t) => t.completedAt && t.completedAt < new Date(utcMidnightIst)).length;
-    expect([
-      doneBy('2026-09-12T18:30:00Z'),
-      doneBy('2026-09-13T18:30:00Z'),
-      doneBy('2026-09-14T18:30:00Z'),
-    ]).toEqual([4, 10, 18]);
+  it('gives every team member work, and the admin work of their own', () => {
+    for (const name of ['Neeraj', 'Saurav']) {
+      expect(seed.tasks.filter((t) => t.assigneeId === person(name).id).length).toBeGreaterThan(5);
+    }
+    const adminTasks = seed.tasks.filter((t) => t.assigneeId === person('Shivansh').id);
+    expect(adminTasks.length).toBeGreaterThan(0);
+    expect(adminTasks.every((t) => t.assignorId === person('Test User').id)).toBe(true);
   });
 
   it('never records history in the future or before its task existed', () => {
@@ -52,14 +60,22 @@ describe('demo seed', () => {
   });
 
   it("stores today's snapshot in agreement with the live workload", () => {
-    const aarav = person('Aarav Shah');
-    const snapshot = seed.snapshots.find((s) => s.userId === aarav.id && s.date === '2026-09-15')!;
-    const live = summarizeWorkload(seed.tasks.filter((t) => t.assigneeId === aarav.id), now, TZ);
+    const neeraj = person('Neeraj');
+    const snapshot = seed.snapshots.find((s) => s.userId === neeraj.id && s.date === '2026-09-15')!;
+    const live = summarizeWorkload(
+      seed.tasks.filter((t) => t.assigneeId === neeraj.id),
+      now,
+      TZ,
+    );
     expect([snapshot.total, snapshot.completed, snapshot.overdue]).toEqual([live.total, live.completed, live.overdue]);
   });
 
-  it('keeps an inactive employee and a moved employee for history', () => {
-    expect(person("Liam O'Brien").isActive).toBe(false);
-    expect(seed.memberships.filter((m) => m.userId === person('Zara Ahmed').id)).toHaveLength(2);
+  it('leaves self-reported work for both review queues', () => {
+    const submissions = seed.tasks.filter((t) => t.origin === 'SELF_REPORTED');
+    expect(submissions.length).toBeGreaterThan(0);
+    expect(submissions.every((t) => t.reviewStatus !== null && t.reviewerId !== null)).toBe(true);
+    const reviewers = new Set(submissions.map((t) => t.reviewerId));
+    expect(reviewers).toContain(person('Shivansh').id);
+    expect(reviewers).toContain(person('Test User').id);
   });
 });

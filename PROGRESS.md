@@ -120,7 +120,26 @@ pnpm --filter @zemp/frontend build
 
 **Next: Phase B** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
 
-Demo password for every seeded account (seed data only): `ZempDemo#2026` — e.g. `john@zemp.test` (Super Admin), `rock@zemp.test` (Admin), `aarav.shah@zemp.test` (Employee).
+## Demo data (from the user's `Demo_Data.xlsx`, 16 Sep 2026)
+
+The seeded organization is the CXO team from the sheet — the previous fictional org (John Carter, Rock
+Alvarez and the 30 employees) is gone, along with the §36 "1 Super Admin, 3 admins, 10 employees each"
+shape and the §10 sprint fixture. Task history, comments, activity, notifications and snapshots are
+still generated for these people so the dashboards and reports have something to show.
+
+| Sheet role | Seeded as | Email | Code |
+|---|---|---|---|
+| Super Admin | `SUPER_ADMIN`, no team | test@example.com | MOB0000 |
+| Super Admin/Admin | `SUPER_ADMIN` **and** a member of CXO — Super Admin already carries every admin power, so this one account runs the org and works in the team | dipro@example.com | MOB0001 |
+| Admin | `ADMIN`, **owns** CXO | shivansh@example.com | MOB0002 |
+| Employe | `EMPLOYEE` in CXO | neeraj@example.com | MOB0003 |
+| Employe | `EMPLOYEE` in CXO | saurav@example.com | MOB0004 |
+
+- Password for every account is the sheet's `1234567890` (seed data only). **It does not satisfy ZEMP's
+  own password rule** (10+ chars with a letter and a number) — sign-in accepts it, but changing a
+  password in-app requires a stronger one. Worth replacing before this data goes anywhere real.
+- `phone` was added to the user record and shows on the employee profile; people created through the UI
+  have no phone yet (the create/edit forms don't collect one).
 
 ## Environment notes
 
