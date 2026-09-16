@@ -1,0 +1,35 @@
+{
+  "name": "@zemp/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ZEMP API \u2014 NestJS REST backend for /api/v1",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"backend tests land in Phase E\" && exit 0"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.0.3",
+    "@nestjs/core": "12.0.3",
+    "@nestjs/platform-express": "12.0.3",
+    "@nestjs/swagger": "12.0.1",
+    "@nestjs/throttler": "6.5.0",
+    "@zemp/shared": "workspace:*",
+    "cookie-parser": "1.4.7",
+    "helmet": "8.3.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "zod": "4.6.4"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "12.0.3",
+    "@nestjs/schematics": "12.0.3",
+    "@types/cookie-parser": "1.4.10",
+    "@types/express": "5.0.6",
+    "@types/node": "24.13.4",
+    "typescript": "6.0.3"
+  }
+}
