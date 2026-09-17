@@ -148,6 +148,10 @@ export class AuthService {
   }
 
   issueResetToken(userId: string, now: Date): string {
+    // Sweep expired tokens on the path that grows the map — see SessionService.pruneExpired.
+    for (const [token, entry] of this.resetTokens) {
+      if (entry.expiresAt < now.getTime()) this.resetTokens.delete(token);
+    }
     const token = randomBytes(32).toString('base64url');
     this.resetTokens.set(token, { userId, expiresAt: now.getTime() + RESET_TTL_MS });
     return token;

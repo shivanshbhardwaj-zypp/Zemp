@@ -25,7 +25,6 @@ import { TeamsModule } from './modules/teams/teams.module.js';
   imports: [
     ConfigModule,
     DataModule,
-    DataModule,
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [CONFIG],

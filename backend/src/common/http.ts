@@ -156,7 +156,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
                 ? 'UNAUTHENTICATED'
                 : status === HttpStatus.FORBIDDEN
                   ? 'FORBIDDEN'
-                  : 'INTERNAL_ERROR';
+                  // Nest's built-in pipes (e.g. ParseUUIDPipe on a malformed :id) throw a plain
+                  // BadRequestException — a validation failure, not a server fault.
+                  : status === HttpStatus.BAD_REQUEST
+                    ? 'VALIDATION_ERROR'
+                    : 'INTERNAL_ERROR';
       return { status, body: { success: false, error: { code, message: ERROR_MESSAGES[code], requestId } } };
     }
 

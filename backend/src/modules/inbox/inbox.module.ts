@@ -30,10 +30,19 @@ import type { ClientContext } from '../auth/auth.service.js';
 /** Notifications, the audit log and organization settings — small surfaces, one module. */
 @Injectable()
 export class InboxService {
-  /** Set once the organization is edited; the seed records its own creation time. */
-  private organizationUpdatedAt = new Date();
-
   constructor(private readonly store: StoreService) {}
+
+  /**
+   * The audit log is the source of truth for "when did this last change" — the seed writes a
+   * SETTINGS_UPDATED entry at org creation, and every edit adds another, so there is no separate
+   * timestamp field to keep in sync (and no risk of it defaulting to "just now" at server boot).
+   */
+  private organizationUpdatedAt(): Date {
+    return (
+      this.store.auditLogs.findLast((e) => e.action === 'SETTINGS_UPDATED' && e.resourceType === 'ORGANIZATION')
+        ?.createdAt ?? new Date()
+    );
+  }
 
   /** A user only ever sees their own notifications — there is no cross-user read path. */
   notifications(user: SeedUser, query: ListNotificationsQuery): Paged<NotificationItem> {
@@ -117,7 +126,7 @@ export class InboxService {
   }
 
   organization(): OrganizationSettings {
-    return { ...this.store.organization, updatedAt: this.organizationUpdatedAt.toISOString() };
+    return { ...this.store.organization, updatedAt: this.organizationUpdatedAt().toISOString() };
   }
 
   updateOrganization(
@@ -128,7 +137,6 @@ export class InboxService {
   ): OrganizationSettings {
     const changes = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
     this.store.updateOrganization(changes);
-    this.organizationUpdatedAt = now;
     this.store.addAudit({
       actorId: user.id,
       action: 'SETTINGS_UPDATED',

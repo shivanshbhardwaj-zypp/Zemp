@@ -20,8 +20,13 @@ import { AuthService, type ClientContext } from './auth.service.js';
 import { CurrentSession } from './session.decorator.js';
 import { SessionService, type Session } from './session.service.js';
 
-/** Credential endpoints are rate limited far more tightly than the rest of the API. */
-const AUTH_THROTTLE = { auth: { limit: 10, ttl: 60_000 } };
+/**
+ * Credential endpoints are rate limited far more tightly than the rest of the API. The override key
+ * must match the throttler's registered `name` ("default" in AppModule) — @nestjs/throttler looks up
+ * the override as `THROTTLER_LIMIT:<name>`, so any other key is silently ignored and the endpoint
+ * falls back to the global limit.
+ */
+const AUTH_THROTTLE = { default: { limit: 10, ttl: 60_000 } };
 
 @ApiTags('auth')
 @Controller('auth')

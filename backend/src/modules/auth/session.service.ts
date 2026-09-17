@@ -34,7 +34,19 @@ export class SessionService {
     return this.config.SESSION_TTL_HOURS * 60 * 60 * 1000;
   }
 
+  /**
+   * Sweeps expired sessions on the path that grows the map, so it never leaks unbounded in a
+   * long-running process — growth stays proportional to concurrently-live sessions, not all-time
+   * logins. Cheap: only entries actually past expiry are touched.
+   */
+  private pruneExpired(now: Date): void {
+    for (const [id, session] of this.sessions) {
+      if (session.expiresAt <= now) this.sessions.delete(id);
+    }
+  }
+
   create(userId: string, context: { ip?: string | null; userAgent?: string | null }, now = new Date()): Session {
+    this.pruneExpired(now);
     const session: Session = {
       id: randomBytes(32).toString('base64url'),
       userId,
