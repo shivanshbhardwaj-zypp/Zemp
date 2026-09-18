@@ -15,7 +15,7 @@ describe('demo seed', () => {
       PEOPLE.map((p) => [p.email, p.employeeCode, p.role]),
     );
     expect(person('Test User').role).toBe('SUPER_ADMIN');
-    expect(person('Dipro Pathak').role).toBe('ADMIN');
+    expect(person('Dipro Pathak').role).toBe('SUPER_ADMIN');
     expect(new Set(seed.users.map((u) => u.email)).size).toBe(seed.users.length);
     expect(new Set(seed.users.map((u) => u.employeeCode)).size).toBe(seed.users.length);
     expect(DEMO_PASSWORD).toBe('1234567890');

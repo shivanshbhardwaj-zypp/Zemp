@@ -34,7 +34,7 @@ export interface SeedPerson {
 /** From the sheet: 1 Super Admin, and two teams each led by their own Admin. */
 export const PEOPLE: readonly SeedPerson[] = [
   { name: 'Test User', email: 'test@example.com', employeeCode: 'MOB0000', phone: '1111122222', role: 'SUPER_ADMIN', jobTitle: 'Super Admin', team: null },
-  { name: 'Dipro Pathak', email: 'dipro.pathak@zypp.app', employeeCode: 'MOB7681', phone: '7003034813', role: 'ADMIN', jobTitle: 'Admin · CXO', team: 'CXO', ownsTeam: true },
+  { name: 'Dipro Pathak', email: 'dipro.pathak@zypp.app', employeeCode: 'MOB7681', phone: '7003034813', role: 'SUPER_ADMIN', jobTitle: 'Super Admin · CXO', team: 'CXO', ownsTeam: true },
   { name: 'Shivansh Bhardwaj', email: 'shivansh.bhardwaj@zypp.app', employeeCode: 'MOBC1658', phone: '7895552243', role: 'EMPLOYEE', jobTitle: 'Team Member', team: 'CXO' },
   { name: 'Neeraj Ranwal', email: 'neeraj.ranwal@zypp.app', employeeCode: 'MOB8099', phone: '9915915136', role: 'EMPLOYEE', jobTitle: 'Team Member', team: 'CXO' },
   { name: 'Saurav', email: 'saurav.chaudhary@zypp.in', employeeCode: 'MOB0004', phone: '7827226062', role: 'EMPLOYEE', jobTitle: 'Team Member', team: 'Content' },
