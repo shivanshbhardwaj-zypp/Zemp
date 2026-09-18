@@ -4,6 +4,7 @@ import type {
   ChangeStatusInput,
   CreateCommentInput,
   CreateTaskInput,
+  IncentiveOverview,
   ListTasksQuery,
   ReassignTaskInput,
   TaskActivityEntry,
@@ -26,4 +27,5 @@ export const tasksApi = {
   comments: (id: string) => api.get<TaskCommentEntry[]>(`/tasks/${id}/comments`),
   addComment: (id: string, input: CreateCommentInput) => api.post<TaskCommentEntry>(`/tasks/${id}/comments`, input),
   assignableUsers: (query: Partial<AssignableUsersQuery>) => api.get<AssignableUser[]>('/tasks/assignable-users', query),
+  incentives: () => api.get<IncentiveOverview>('/incentives'),
 };

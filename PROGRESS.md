@@ -145,26 +145,35 @@ pnpm --filter @zemp/frontend build
 
 **Next: Phase C** (PostgreSQL + Prisma), then **Phase D** — NestJS 12 backend implementing the same `/api/v1` contract with the `@zemp/shared` planners, then Phase D deletes `frontend/src/mocks` and `frontend/src/app/api/v1`.
 
-## Demo data (from the user's `Demo_Data.xlsx`, 16 Sep 2026)
+## Demo data (from the user's `Demo_Data.xlsx`, updated 18 Sep 2026)
 
-The seeded organization is the CXO team from the sheet — the previous fictional org (John Carter, Rock
-Alvarez and the 30 employees) is gone, along with the §36 "1 Super Admin, 3 admins, 10 employees each"
-shape and the §10 sprint fixture. Task history, comments, activity, notifications and snapshots are
-still generated for these people so the dashboards and reports have something to show.
+The seed is now the customer's **live roster** — real names and Zypp emails across two teams, with
+**no** generated task/activity/comment/notification/audit/snapshot history. It's a blank slate: every
+dashboard, report and list starts empty and fills up only from what the team actually does in the app.
+(The 16 Sep version, which generated a realistic task history for a single CXO team, has been replaced.)
 
-| Sheet role | Seeded as | Email | Code |
-|---|---|---|---|
-| Super Admin | `SUPER_ADMIN`, no team | test@example.com | MOB0000 |
-| Super Admin/Admin | `SUPER_ADMIN` **and** a member of CXO — Super Admin already carries every admin power, so this one account runs the org and works in the team | dipro@example.com | MOB0001 |
-| Admin | `ADMIN`, **owns** CXO | shivansh@example.com | MOB0002 |
-| Employe | `EMPLOYEE` in CXO | neeraj@example.com | MOB0003 |
-| Employe | `EMPLOYEE` in CXO | saurav@example.com | MOB0004 |
+| Sheet role | Seeded as | Email | Team | Code |
+|---|---|---|---|---|
+| Super Admin | `SUPER_ADMIN`, no team | test@example.com | — | MOB0000 |
+| Admin | `ADMIN`, **owns** CXO | dipro.pathak@zypp.app | CXO | MOB7681 |
+| User | `EMPLOYEE` | shivansh.bhardwaj@zypp.app | CXO | MOBC1658 |
+| User | `EMPLOYEE` | neeraj.ranwal@zypp.app | CXO | MOB8099 |
+| User | `EMPLOYEE` | saurav.chaudhary@zypp.in | Content | MOB0004 |
+| Admin | `ADMIN`, **owns** Content | faisal.maqbool1@zypp.app | Content | MOB7272 |
+| User | `EMPLOYEE` | deepesh.pandey@zypp.app | Content | MOB6375 |
+| User | `EMPLOYEE` | janit.jaiswal@zypp.app | Content | MOB6969 |
+| User | `EMPLOYEE` | ayushi.ojha@zypp.app | Content | MOB6374 |
 
-- Password for every account is the sheet's `1234567890` (seed data only). **It does not satisfy ZEMP's
-  own password rule** (10+ chars with a letter and a number) — sign-in accepts it, but changing a
-  password in-app requires a stronger one. Worth replacing before this data goes anywhere real.
-- `phone` was added to the user record and shows on the employee profile; people created through the UI
-  have no phone yet (the create/edit forms don't collect one).
+- Password for every account is the shared demo password `1234567890` (seed data only — see
+  `packages/shared/src/seed/index.ts`). **The sheet's own per-person passwords were deliberately not
+  committed to source control** — real credentials should never live in git, even for a local demo.
+  Sign-in accepts the shared password for now; changing a password in-app requires a stronger one, per
+  ZEMP's own password rule.
+- The login page's demo-account picker (`frontend/src/components/auth/LoginForm.tsx`) now derives its
+  list from `PEOPLE` in `@zemp/shared/seed` instead of a hardcoded copy, so it can't drift from the
+  seed again.
+- `phone` is on the user record and shows on the employee profile; people created through the UI have
+  no phone yet (the create/edit forms don't collect one).
 
 ## Environment notes
 

@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter } from '@/components/ui/Dialog';
 import { Field } from '@/components/ui/Field';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { Switch } from '@/components/ui/Switch';
 import { useAssignableUsers, useCreateTask } from '@/hooks/useTasks';
 import { useTeamOptions } from '@/hooks/useTeams';
 import { applyApiError, useLeaveGuard } from '@/lib/formErrors';
@@ -28,12 +29,22 @@ const formSchema = z
     priority: z.enum(TASK_PRIORITIES),
     startAt: z.string(),
     dueAt: z.string().min(1, 'Choose a due date'),
+    incentiveAmount: z.string(),
   })
   .refine((v) => !v.startAt || v.startAt <= v.dueAt, { path: ['dueAt'], message: 'The due date must be after the start date' });
 
 type FormValues = z.infer<typeof formSchema>;
 
-const EMPTY: FormValues = { title: '', description: '', teamId: '', assigneeId: '', priority: 'MEDIUM', startAt: '', dueAt: '' };
+const EMPTY: FormValues = {
+  title: '',
+  description: '',
+  teamId: '',
+  assigneeId: '',
+  priority: 'MEDIUM',
+  startAt: '',
+  dueAt: '',
+  incentiveAmount: '',
+};
 
 /** Assign Task (Frontend.md §36–37, §84): choices are filtered to the viewer's scope; the API decides. */
 export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -43,6 +54,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
   const create = useCreateTask();
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [hasIncentive, setHasIncentive] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -58,6 +70,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
   const close = () => {
     reset();
     setFormError(null);
+    setHasIncentive(false);
     onOpenChange(false);
   };
   const requestClose = () => (dirty ? setConfirmLeave(true) : close());
@@ -77,6 +90,11 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       setError('dueAt', { message: 'Choose a due date in the future' });
       return;
     }
+    const incentiveAmount = Number(values.incentiveAmount);
+    if (hasIncentive && (!values.incentiveAmount || !(incentiveAmount > 0))) {
+      setError('incentiveAmount', { message: 'Enter an incentive amount greater than 0' });
+      return;
+    }
     try {
       const task = await create.mutateAsync({
         title: values.title,
@@ -86,6 +104,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
         priority: values.priority,
         startAt: values.startAt ? fromDateTimeInput(values.startAt, timeZone).toISOString() : undefined,
         dueAt: dueAt.toISOString(),
+        incentiveAmount: hasIncentive ? incentiveAmount : undefined,
       });
       toast.success('Task assigned successfully.', {
         action: { label: 'View', onClick: () => router.push(`/tasks/${task.id}`) },
@@ -93,12 +112,17 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       close();
     } catch (error) {
       setFormError(
-        applyApiError(error, setError, ['title', 'description', 'teamId', 'assigneeId', 'priority', 'startAt', 'dueAt'], {
-          ASSIGNEE_OUT_OF_SCOPE: 'assigneeId',
-          ASSIGNEE_INACTIVE: 'assigneeId',
-          INVALID_TEAM: 'teamId',
-          INVALID_DUE_DATE: 'dueAt',
-        }),
+        applyApiError(
+          error,
+          setError,
+          ['title', 'description', 'teamId', 'assigneeId', 'priority', 'startAt', 'dueAt', 'incentiveAmount'],
+          {
+            ASSIGNEE_OUT_OF_SCOPE: 'assigneeId',
+            ASSIGNEE_INACTIVE: 'assigneeId',
+            INVALID_TEAM: 'teamId',
+            INVALID_DUE_DATE: 'dueAt',
+          },
+        ),
       );
     }
   };
@@ -191,6 +215,23 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
                 {(control) => <Input {...control} {...register('startAt')} type="datetime-local" />}
               </Field>
             </div>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={hasIncentive}
+                onCheckedChange={(checked) => {
+                  setHasIncentive(checked);
+                  if (!checked) setValue('incentiveAmount', '', { shouldDirty: true });
+                }}
+                aria-label="This task has an incentive"
+              />
+              <span className="text-sm font-medium text-ink">This task has an incentive</span>
+            </div>
+            {hasIncentive && (
+              <Field label="Incentive amount (₹)" hint="Paid on top of salary when this task is completed." error={formState.errors.incentiveAmount?.message}>
+                {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} placeholder="e.g. 100" />}
+              </Field>
+            )}
 
             <Field label="Due date" hint={`Times are in ${timeZone}.`} error={formState.errors.dueAt?.message}>
               {(control) => (

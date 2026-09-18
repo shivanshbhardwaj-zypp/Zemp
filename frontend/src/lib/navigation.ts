@@ -1,5 +1,6 @@
 import type { SessionUser } from '@zemp/shared';
 import {
+  Award,
   Bell,
   ChartColumn,
   ClipboardCheck,
@@ -34,6 +35,8 @@ const notifications: NavItem = { href: '/notifications', label: 'Notifications',
 const settings: NavItem = { href: '/settings', label: 'Settings', icon: Settings, activePrefixes: ['/settings', '/profile'] };
 const reports: NavItem = { href: '/reports', label: 'Reports', icon: ChartColumn };
 const reviews: NavItem = { href: '/reviews', label: 'Reviews', icon: ClipboardCheck };
+/** Employee-only — it's their own incentive pay, not something a manager needs a tab for. */
+const incentives: NavItem = { href: '/incentives', label: 'Incentives', icon: Award };
 
 /**
  * Role navigation from Frontend.md §124. Unavailable modules are omitted rather than disabled.
@@ -77,6 +80,7 @@ export function navigationFor(user: SessionUser): Navigation {
           { href: '/dashboard', label: 'My Dashboard', icon: LayoutDashboard },
           { href: '/tasks', label: 'My Tasks', icon: ListChecks },
           { href: '/progress', label: 'My Progress', icon: TrendingUp },
+          incentives,
         ],
         administration: [],
         footer: [notifications, { href: '/profile', label: 'Profile', icon: UserRound, activePrefixes: ['/profile', '/settings'] }],

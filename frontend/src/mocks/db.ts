@@ -8,12 +8,14 @@ import {
   ROLE_PERMISSIONS,
   activityLabels,
   canViewTask,
+  deadlineReminders,
   toTaskSummary,
   type AssigneeCandidate,
   type AuditAction,
   type AuditResourceType,
   type AuditResult,
   type NamedActor,
+  type NotificationDraft,
   type SessionUser,
   type TaskActivityEntry,
   type TaskDetail,
@@ -30,6 +32,7 @@ import {
   type SeedTeam,
   type SeedUser,
 } from '@zemp/shared/seed';
+import { sendEmail } from './email';
 
 export interface MockSession {
   token: string;
@@ -46,7 +49,23 @@ interface MockDb extends SeedData {
   organizationUpdatedAt: Date;
 }
 
-const store = globalThis as typeof globalThis & { __zempMockDb?: MockDb };
+const store = globalThis as typeof globalThis & { __zempMockDb?: MockDb; __zempReminderTimer?: NodeJS.Timeout };
+
+/** Mirrors the backend's deadline-reminder cron — same shared check, a plain interval here. */
+function checkDeadlines(): void {
+  const db = store.__zempMockDb;
+  if (!db) return;
+  const now = new Date();
+  const sentOfType = (type: 'DEADLINE_APPROACHING' | 'TASK_OVERDUE') =>
+    new Set(db.notifications.filter((n) => n.type === type && n.taskId).map((n) => n.taskId!));
+  for (const reminder of deadlineReminders(
+    db.tasks,
+    { deadlineApproaching: sentOfType('DEADLINE_APPROACHING'), overdue: sentOfType('TASK_OVERDUE') },
+    now,
+  )) {
+    addNotification({ userId: reminder.userId, type: reminder.type, title: reminder.title, body: reminder.body }, reminder.taskId, now);
+  }
+}
 
 export function db(): MockDb {
   if (!store.__zempMockDb) {
@@ -59,6 +78,11 @@ export function db(): MockDb {
       organizationUpdatedAt: seed.auditLogs[0]?.createdAt ?? new Date(),
     };
   }
+  // Hot reloads replace the timer instead of stacking a duplicate, same as the routes map in http.ts.
+  if (!store.__zempReminderTimer) {
+    store.__zempReminderTimer = setInterval(checkDeadlines, 5 * 60_000);
+    store.__zempReminderTimer.unref?.();
+  }
   return store.__zempMockDb;
 }
 
@@ -68,6 +92,13 @@ export const zone = () => db().organization.timezone;
 
 export const findUser = (id: string) => db().users.find((u) => u.id === id);
 export const findTeam = (id: string) => db().teams.find((t) => t.id === id);
+
+/** Also emails the recipient, reusing the notification's own title/body — mirrors the backend. */
+export function addNotification(draft: NotificationDraft, taskId: string | null, now: Date) {
+  db().notifications.unshift({ id: newId(), ...draft, taskId, readAt: null, createdAt: now });
+  const recipient = findUser(draft.userId);
+  if (recipient) sendEmail(recipient.email, draft.title, draft.body);
+}
 export const findTask = (id: string) => db().tasks.find((t) => t.id === id);
 
 export const userRef = (u: SeedUser): UserRef => ({

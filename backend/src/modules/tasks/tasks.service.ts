@@ -13,11 +13,13 @@ import {
   planStatusChange,
   planTaskUpdate,
   startOfDay,
+  summarizeIncentives,
   type AssignableUser,
   type AssignableUsersQuery,
   type ChangeStatusInput,
   type CreateCommentInput,
   type CreateTaskInput,
+  type IncentiveOverview,
   type ListTasksQuery,
   type NamedActor,
   type ReassignTaskInput,
@@ -169,6 +171,7 @@ export class TasksService {
         startAt: input.startAt ? new Date(input.startAt) : null,
         dueAt: new Date(input.dueAt),
         teamId: input.teamId ?? null,
+        incentiveAmount: input.incentiveAmount ?? null,
       },
     });
     const task: SeedTask = {
@@ -204,10 +207,16 @@ export class TasksService {
         priority: input.priority,
         startAt: input.startAt === undefined ? undefined : input.startAt ? new Date(input.startAt) : null,
         dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
+        incentiveAmount: input.incentiveAmount,
       },
     });
     this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
+  }
+
+  /** The viewer's own incentivized tasks — never anyone else's; there's no team or ID to spoof. */
+  incentives(user: SeedUser): IncentiveOverview {
+    return summarizeIncentives(this.store.tasks.filter((t) => t.assigneeId === user.id));
   }
 
   updateProgress(user: SeedUser, id: string, progress: number, client: ClientContext, now: Date): TaskDetail {

@@ -93,38 +93,38 @@ export function TeamsPage() {
   );
 }
 
-/** Team name · admin · members · active tasks · completion (Frontend.md §86). */
+/** Team name · admin · members · active tasks · completion (Frontend.md §86). The whole card opens the team. */
 function TeamCard({ team }: { team: TeamListItem }) {
   const w = team.workload;
   return (
-    <Card className="flex h-full flex-col p-5 transition-shadow duration-200 hover:shadow-elevated">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link href={`/teams/${team.id}`} className="block truncate text-base font-semibold text-ink hover:underline">
-            {team.name}
-          </Link>
-          <p className="truncate text-meta text-ink-muted">{team.owner ? `Admin: ${team.owner.name}` : 'No admin yet'}</p>
-        </div>
-        {team.isActive ? <RiskBadge risk={team.risk} /> : <Badge tone="neutral">Inactive</Badge>}
-      </div>
-      <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        {[
-          ['Members', team.memberCount],
-          ['Active tasks', w.todo + w.inProgress + w.blocked],
-          ['Overdue', w.overdue],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <dt className="text-meta text-ink-muted">{label}</dt>
-            <dd className="mt-0.5 font-semibold text-ink tabular">{formatCount(Number(value))}</dd>
+    <Link href={`/teams/${team.id}`} className="block h-full rounded-lg">
+      <Card className="flex h-full flex-col p-5 transition-shadow duration-200 hover:shadow-elevated">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-ink">{team.name}</p>
+            <p className="truncate text-meta text-ink-muted">{team.owner ? `Admin: ${team.owner.name}` : 'No admin yet'}</p>
           </div>
-        ))}
-      </dl>
-      <div className="mt-auto pt-4">
-        <ProgressBar value={w.completionRate} label={`${team.name} completion`} tone={toneForRisk(team.risk)} />
-        <p className="mt-1.5 text-meta text-ink-muted">
-          {plural(w.completed, 'task')} of {formatCount(w.total)} completed{team.atRiskMembers ? ` · ${plural(team.atRiskMembers, 'member')} at risk` : ''}
-        </p>
-      </div>
-    </Card>
+          {team.isActive ? <RiskBadge risk={team.risk} /> : <Badge tone="neutral">Inactive</Badge>}
+        </div>
+        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          {[
+            ['Members', team.memberCount],
+            ['Active tasks', w.todo + w.inProgress + w.blocked],
+            ['Overdue', w.overdue],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-meta text-ink-muted">{label}</dt>
+              <dd className="mt-0.5 font-semibold text-ink tabular">{formatCount(Number(value))}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-auto pt-4">
+          <ProgressBar value={w.completionRate} label={`${team.name} completion`} tone={toneForRisk(team.risk)} />
+          <p className="mt-1.5 text-meta text-ink-muted">
+            {plural(w.completed, 'task')} of {formatCount(w.total)} completed{team.atRiskMembers ? ` · ${plural(team.atRiskMembers, 'member')} at risk` : ''}
+          </p>
+        </div>
+      </Card>
+    </Link>
   );
 }

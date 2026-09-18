@@ -89,6 +89,8 @@ export const passwordResetConfirmSchema = z.object({
 
 // ── Tasks ──────────────────────────────────────────────────────────────────
 
+const incentiveAmountSchema = z.number().min(0).max(1_000_000);
+
 export const createTaskSchema = z.object({
   title: text('Title', 3, 200),
   description: z.string().trim().max(5000).optional(),
@@ -97,6 +99,7 @@ export const createTaskSchema = z.object({
   priority: z.enum(TASK_PRIORITIES).default('MEDIUM'),
   startAt: dateTimeSchema.optional(),
   dueAt: dateTimeSchema,
+  incentiveAmount: incentiveAmountSchema.optional(),
 });
 
 export const updateTaskSchema = z
@@ -106,6 +109,7 @@ export const updateTaskSchema = z
     priority: z.enum(TASK_PRIORITIES).optional(),
     startAt: dateTimeSchema.nullable().optional(),
     dueAt: dateTimeSchema.optional(),
+    incentiveAmount: incentiveAmountSchema.nullable().optional(),
   })
   .refine(hasAnyField, anyField);
 

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthGuard, RequestContextInterceptor } from './common/auth.js';
 import { ApiExceptionFilter, EnvelopeInterceptor } from './common/http.js';
@@ -8,6 +9,7 @@ import { ConfigModule } from './config/config.module.js';
 import { CONFIG, type AppConfig } from './config/env.js';
 import { DataModule } from './data/data.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { EmailModule } from './modules/email/email.module.js';
 import { HealthController } from './modules/health/health.controller.js';
 import { InboxModule } from './modules/inbox/inbox.module.js';
 import { PeopleModule } from './modules/people/people.module.js';
@@ -24,7 +26,9 @@ import { TeamsModule } from './modules/teams/teams.module.js';
 @Module({
   imports: [
     ConfigModule,
+    EmailModule,
     DataModule,
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [CONFIG],

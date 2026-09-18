@@ -28,6 +28,7 @@ import type { SeedUser } from '@zemp/shared/seed';
 import {
   actorFor,
   addAudit,
+  addNotification,
   currentTeam,
   db,
   findTeam,
@@ -229,9 +230,7 @@ patch('/employees/:id/role', ({ req, user, params, body, now }) => {
     teamName: team?.name,
   });
   person.role = plan.patch.role;
-  for (const notification of plan.notifications) {
-    db().notifications.unshift({ id: newId(), ...notification, taskId: null, readAt: null, createdAt: now });
-  }
+  for (const notification of plan.notifications) addNotification(notification, null, now);
   for (const entry of plan.audits) addAudit(req, now, user.id, entry.action, 'USER', person.id, entry.metadata);
   return employeeDetail(person, user, now);
 });

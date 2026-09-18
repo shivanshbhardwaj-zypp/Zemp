@@ -1,5 +1,6 @@
 import type {
   DailyTrendPoint,
+  IncentiveOverview,
   PersonProgress,
   TaskSummary,
   TeamProgress,
@@ -22,7 +23,7 @@ import {
 import { addDays, dayKey, startOfDay } from '../time.js';
 import type { Actor } from './access.js';
 import { allowedTransitions, deadlineState, isOverdue, taskPermissions, taskRisk, type TaskRecord } from './tasks.js';
-import { summarizeWorkload, workloadRisk, type WorkloadTask } from './workload.js';
+import { round2, summarizeWorkload, workloadRisk, type WorkloadTask } from './workload.js';
 
 /**
  * Read-model builders shared by every API implementation, so overdue state, risk, permissions and
@@ -70,6 +71,7 @@ export function toTaskSummary(args: {
     permissions: taskPermissions(actor, task, args.assignee.role),
     origin: task.origin,
     evidenceUrl: task.evidenceUrl,
+    incentiveAmount: task.incentiveAmount,
     review:
       task.reviewStatus === null
         ? null
@@ -129,6 +131,29 @@ export function toTeamProgress(args: {
     workload: summarizeWorkload(tasks, now, timeZone),
     completedToday: completedToday(tasks, now, timeZone),
     risk: workloadRisk(tasks, now, timeZone),
+  };
+}
+
+/** Every incentivized task assigned to one person, newest first, with what's earned vs. still open. */
+export function summarizeIncentives(
+  tasks: readonly Pick<TaskRecord, 'id' | 'title' | 'status' | 'incentiveAmount' | 'completedAt' | 'dueAt'>[],
+): IncentiveOverview {
+  const incentivized = tasks.filter((t) => t.incentiveAmount !== null && t.status !== 'CANCELLED');
+  const lines = incentivized
+    .map((t) => ({
+      taskId: t.id,
+      title: t.title,
+      status: t.status,
+      amount: t.incentiveAmount!,
+      completedAt: t.completedAt?.toISOString() ?? null,
+      dueAt: t.dueAt.toISOString(),
+    }))
+    .sort((a, b) => (b.completedAt ?? b.dueAt).localeCompare(a.completedAt ?? a.dueAt));
+  const sum = (ts: typeof incentivized) => round2(ts.reduce((total, t) => total + t.incentiveAmount!, 0));
+  return {
+    tasks: lines,
+    totalEarned: sum(incentivized.filter((t) => t.status === 'COMPLETED')),
+    totalPending: sum(incentivized.filter((t) => t.status !== 'COMPLETED')),
   };
 }
 

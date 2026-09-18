@@ -38,6 +38,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { CONFIG, type AppConfig } from '../config/env.js';
 import { hashPassword } from '../modules/auth/password.js';
+import { EmailService } from '../modules/email/email.service.js';
 
 /**
  * PHASE B DATA LAYER — the whole organization in memory, seeded once at startup.
@@ -54,7 +55,10 @@ export class StoreService implements OnModuleInit {
   /** userId → argon2id hash. Plaintext passwords are never stored, logged or returned. */
   private readonly passwords = new Map<string, string>();
 
-  constructor(@Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly email: EmailService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const started = Date.now();
@@ -314,6 +318,8 @@ export class StoreService implements OnModuleInit {
 
   addNotification(draft: NotificationDraft, taskId: string | null, at: Date): void {
     this.data.notifications.unshift({ id: this.newId(), ...draft, taskId, readAt: null, createdAt: at });
+    const recipient = this.findUser(draft.userId);
+    if (recipient) this.email.send(recipient.email, draft.title, draft.body);
   }
 
   /**

@@ -52,6 +52,8 @@ export interface TaskRecord {
   reviewedAt: Date | null;
   reviewNote: string | null;
   evidenceUrl: string | null;
+  /** Set by whoever assigns/edits the task — a bonus in rupees for completing it. Null means none. */
+  incentiveAmount: number | null;
 }
 
 export interface NamedActor extends Actor {
@@ -106,6 +108,7 @@ export interface TaskPatch {
   reviewedAt?: Date | null;
   reviewNote?: string | null;
   evidenceUrl?: string | null;
+  incentiveAmount?: number | null;
   /** Deadline reminders are re-armed when the due date moves. */
   resetDeadlineReminders?: boolean;
 }
@@ -255,6 +258,7 @@ export interface NewTaskInput {
   startAt?: Date | null;
   dueAt: Date;
   teamId?: string | null;
+  incentiveAmount?: number | null;
 }
 
 export interface NewTaskPlan {
@@ -306,6 +310,7 @@ export function planCreateTask(args: {
       reviewedAt: null,
       reviewNote: null,
       evidenceUrl: null,
+      incentiveAmount: input.incentiveAmount ?? null,
     },
     activities: [activity('CREATED'), activity('ASSIGNED', null, assignee.id)],
     notifications: plan.notifications,
@@ -431,6 +436,7 @@ export interface TaskEditInput {
   priority?: TaskPriority;
   startAt?: Date | null;
   dueAt?: Date;
+  incentiveAmount?: number | null;
 }
 
 export function planTaskUpdate(args: {
@@ -458,6 +464,10 @@ export function planTaskUpdate(args: {
   if (startChanged) {
     plan.patch.startAt = input.startAt ?? null;
     changedFields.push('start date');
+  }
+  if (input.incentiveAmount !== undefined && input.incentiveAmount !== task.incentiveAmount) {
+    plan.patch.incentiveAmount = input.incentiveAmount;
+    changedFields.push('incentive');
   }
   if (changedFields.length) plan.activities.push(activity('UPDATED', null, changedFields.join(', ')));
 
@@ -585,6 +595,7 @@ export function planSelfReport(args: {
       reviewedAt: null,
       reviewNote: null,
       evidenceUrl: input.evidenceUrl ?? null,
+      incentiveAmount: null,
     },
     activities: [activity('CREATED'), activity('SUBMITTED_FOR_REVIEW', null, reviewer.id)],
     notifications: plan.notifications,

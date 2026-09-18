@@ -22,6 +22,7 @@ import { Field } from '@/components/ui/Field';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { Switch } from '@/components/ui/Switch';
 import { useTask, useUpdateTask } from '@/hooks/useTasks';
 import { applyApiError, useLeaveGuard } from '@/lib/formErrors';
 import { useTimeZone } from '@/lib/session';
@@ -33,6 +34,7 @@ const formSchema = z
     priority: z.enum(TASK_PRIORITIES),
     startAt: z.string(),
     dueAt: z.string().min(1, 'Choose a due date'),
+    incentiveAmount: z.string(),
   })
   .refine((v) => !v.startAt || v.startAt <= v.dueAt, { path: ['dueAt'], message: 'The due date must be after the start date' });
 
@@ -63,14 +65,16 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
   const timeZone = useTimeZone();
   const update = useUpdateTask(task.id);
   const [formError, setFormError] = useState<string | null>(null);
+  const [hasIncentive, setHasIncentive] = useState(task.incentiveAmount !== null);
   const initial: FormValues = {
     title: task.title,
     description: task.description ?? '',
     priority: task.priority,
     startAt: task.startAt ? toDateTimeInput(new Date(task.startAt), timeZone) : '',
     dueAt: toDateTimeInput(new Date(task.dueAt), timeZone),
+    incentiveAmount: task.incentiveAmount !== null ? String(task.incentiveAmount) : '',
   };
-  const { register, handleSubmit, setError, formState } = useForm<FormValues>({
+  const { register, handleSubmit, setError, setValue, formState } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: initial,
   });
@@ -93,6 +97,13 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
       }
       changes.dueAt = dueAt.toISOString();
     }
+    const incentiveAmount = Number(values.incentiveAmount);
+    if (hasIncentive && (!values.incentiveAmount || !(incentiveAmount > 0))) {
+      setError('incentiveAmount', { message: 'Enter an incentive amount greater than 0' });
+      return;
+    }
+    const nextIncentive = hasIncentive ? incentiveAmount : null;
+    if (nextIncentive !== task.incentiveAmount) changes.incentiveAmount = nextIncentive;
     if (Object.keys(changes).length === 0) {
       onClose();
       return;
@@ -103,7 +114,7 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
       onClose();
     } catch (error) {
       setFormError(
-        applyApiError(error, setError, ['title', 'description', 'priority', 'startAt', 'dueAt'], {
+        applyApiError(error, setError, ['title', 'description', 'priority', 'startAt', 'dueAt', 'incentiveAmount'], {
           INVALID_DUE_DATE: 'dueAt',
         }),
       );
@@ -138,6 +149,22 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
         </Field>
       </div>
       <p className="text-meta text-ink-muted">Times are in {timeZone}.</p>
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={hasIncentive}
+          onCheckedChange={(checked) => {
+            setHasIncentive(checked);
+            if (!checked) setValue('incentiveAmount', '', { shouldDirty: true });
+          }}
+          aria-label="This task has an incentive"
+        />
+        <span className="text-sm font-medium text-ink">This task has an incentive</span>
+      </div>
+      {hasIncentive && (
+        <Field label="Incentive amount (₹)" error={formState.errors.incentiveAmount?.message}>
+          {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} placeholder="e.g. 100" />}
+        </Field>
+      )}
       {formError && (
         <div role="alert" className="flex gap-2.5 rounded-md border border-danger-border bg-danger-soft px-3.5 py-3 text-sm text-danger-ink">
           <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />

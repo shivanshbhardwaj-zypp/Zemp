@@ -14,6 +14,7 @@ import {
   type ChangeStatusInput,
   type CreateCommentInput,
   type CreateTaskInput,
+  type IncentiveOverview,
   type ListTasksQuery,
   type ReassignTaskInput,
   type TaskActivityEntry,
@@ -154,5 +155,17 @@ export class TasksController {
     @Now() now: Date,
   ): TaskCommentEntry {
     return this.tasks.addComment(user, id, input, client, now);
+  }
+}
+
+@ApiTags('tasks')
+@Controller('incentives')
+export class IncentivesController {
+  constructor(private readonly tasks: TasksService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Your own incentivized tasks — what you have earned and what is still open' })
+  mine(@CurrentUser() user: SeedUser): IncentiveOverview {
+    return this.tasks.incentives(user);
   }
 }

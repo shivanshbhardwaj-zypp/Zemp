@@ -126,6 +126,8 @@ export interface TaskSummary {
   evidenceUrl: string | null;
   /** Null for assigned work. */
   review: TaskReview | null;
+  /** Set by whoever assigned/edited the task — a bonus in rupees for completing it. Null means none. */
+  incentiveAmount: number | null;
 }
 
 export interface TaskReview {
@@ -142,6 +144,26 @@ export interface TaskDetail extends TaskSummary {
   createdBy: UserRef;
   updatedBy: UserRef;
   commentCount: number;
+}
+
+/** One line of the viewer's own incentive breakdown — a task and what it's worth. */
+export interface IncentiveTaskLine {
+  taskId: string;
+  title: string;
+  status: TaskStatus;
+  amount: number;
+  /** Set once the task is completed — that's when the amount is actually earned. */
+  completedAt: string | null;
+  dueAt: string;
+}
+
+/** The signed-in person's own incentivized tasks — never anyone else's (GET /incentives). */
+export interface IncentiveOverview {
+  tasks: IncentiveTaskLine[];
+  /** Sum for completed incentivized tasks. */
+  totalEarned: number;
+  /** Sum for open incentivized tasks — not yet earned. */
+  totalPending: number;
 }
 
 export interface TaskActivityEntry {

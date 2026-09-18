@@ -20,9 +20,11 @@ import {
   planTaskUpdate,
   reassignTaskSchema,
   startOfDay,
+  summarizeIncentives,
   updateProgressSchema,
   updateTaskSchema,
   type AssignableUser,
+  type IncentiveOverview,
   type NamedActor,
   type TaskCommentEntry,
   type TaskPlan,
@@ -32,6 +34,7 @@ import {
   activityEntry,
   actorFor,
   addAudit,
+  addNotification,
   candidateFor,
   currentTeam,
   db,
@@ -66,9 +69,7 @@ export function applyPlan(req: Request, now: Date, actor: NamedActor, task: Seed
   for (const activity of plan.activities) {
     store.activities.push({ id: newId(), taskId: task.id, actorId: actor.id, ...activity, createdAt: now });
   }
-  for (const notification of plan.notifications) {
-    store.notifications.unshift({ id: newId(), ...notification, taskId: task.id, readAt: null, createdAt: now });
-  }
+  for (const notification of plan.notifications) addNotification(notification, task.id, now);
   for (const entry of plan.audits) addAudit(req, now, actor.id, entry.action, 'TASK', task.id, entry.metadata);
 }
 
@@ -167,6 +168,7 @@ post('/tasks', ({ req, user, body, now }) => {
       startAt: input.startAt ? new Date(input.startAt) : null,
       dueAt: new Date(input.dueAt),
       teamId: input.teamId ?? null,
+      incentiveAmount: input.incentiveAmount ?? null,
     },
   });
   const task: SeedTask = {
@@ -204,6 +206,7 @@ patch('/tasks/:id', ({ req, user, params, body, now }) => {
       priority: input.priority,
       startAt: input.startAt === undefined ? undefined : input.startAt ? new Date(input.startAt) : null,
       dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
+      incentiveAmount: input.incentiveAmount,
     },
   });
   applyPlan(req, now, actor, task, plan);
@@ -267,4 +270,9 @@ post('/tasks/:id/comments', ({ req, user, params, body, now }) => {
   db().comments.push(comment);
   applyPlan(req, now, actor, task, plan);
   return commentEntry(comment, user);
+});
+
+/** The viewer's own incentivized tasks — never anyone else's; there's no team or ID to spoof. */
+get('/incentives', ({ user }) => {
+  return summarizeIncentives(db().tasks.filter((t) => t.assigneeId === user.id)) satisfies IncentiveOverview;
 });

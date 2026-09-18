@@ -6,6 +6,7 @@ export * from './domain/access.js';
 export * from './domain/tasks.js';
 export * from './domain/delegation.js';
 export * from './domain/workload.js';
+export * from './domain/reminders.js';
 export * from './domain/views.js';
 export * from './schemas.js';
 export type * from './contracts.js';

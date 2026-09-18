@@ -59,6 +59,11 @@ export function useAssignableUsers(query: Partial<AssignableUsersQuery>, enabled
   });
 }
 
+/** The viewer's own incentivized tasks — what they've earned and what's still open. */
+export function useIncentiveOverview() {
+  return useQuery({ queryKey: ['tasks', 'incentives'], queryFn: tasksApi.incentives });
+}
+
 function useWorkMutation<TVariables, TData>(mutationFn: (variables: TVariables) => Promise<TData>) {
   const queryClient = useQueryClient();
   return useMutation({ mutationFn, onSuccess: () => invalidateWorkData(queryClient) });

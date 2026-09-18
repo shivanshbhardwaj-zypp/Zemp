@@ -37,9 +37,15 @@ describe('navigationFor', () => {
 
   it('limits an employee to their own work', () => {
     const items = hrefs('EMPLOYEE');
-    expect(items).toEqual(['/dashboard', '/tasks', '/progress', '/notifications', '/profile']);
+    expect(items).toEqual(['/dashboard', '/tasks', '/progress', '/incentives', '/notifications', '/profile']);
     expect(items).not.toContain('/employees');
     expect(items).not.toContain('/teams');
+  });
+
+  it('keeps Incentives out of every manager panel', () => {
+    expect(hrefs('SUPER_ADMIN')).not.toContain('/incentives');
+    expect(hrefs('ADMIN')).not.toContain('/incentives');
+    expect(hrefs('SUB_ADMIN')).not.toContain('/incentives');
   });
 });
 

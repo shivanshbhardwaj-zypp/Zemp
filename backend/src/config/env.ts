@@ -24,6 +24,16 @@ const envSchema = z.object({
   ORG_TIME_ZONE: z.string().default('Asia/Kolkata'),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(10).max(10_000).default(300),
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(3).max(1_000).default(10),
+  /** Unset in local dev: email sending is then a logged no-op rather than a startup failure. */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default('ZEMP <notifications@zemp.local>'),
 });
 
 export type AppConfig = z.infer<typeof envSchema> & { isProduction: boolean };
