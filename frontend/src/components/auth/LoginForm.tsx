@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { loginSchema, type LoginInput } from '@zemp/shared';
+import { ROLE_LABELS, loginSchema, type LoginInput } from '@zemp/shared';
+import { DEMO_PASSWORD, PEOPLE } from '@zemp/shared/seed';
 import { CircleAlert, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -104,46 +105,6 @@ export function LoginForm() {
       <Button type="submit" size="lg" loading={isSubmitting} className="mt-1 w-full">
         {isSubmitting ? 'Signing in…' : 'Sign in'}
       </Button>
-
-      {process.env.NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS === 'true' && (
-        <DemoAccounts
-          onPick={(email) => {
-            setValue('email', email, { shouldValidate: true });
-            setValue('password', DEMO_PASSWORD, { shouldValidate: true });
-          }}
-        />
-      )}
     </form>
-  );
-}
-
-const DEMO_PASSWORD = '1234567890';
-const DEMO_ACCOUNTS = [
-  { email: 'test@example.com', label: 'Test User', role: 'Super Admin' },
-  { email: 'dipro@example.com', label: 'Dipro', role: 'Super Admin · CXO' },
-  { email: 'shivansh@example.com', label: 'Shivansh', role: 'Admin' },
-  { email: 'neeraj@example.com', label: 'Neeraj', role: 'Employee' },
-  { email: 'saurav@example.com', label: 'Saurav', role: 'Employee' },
-];
-
-function DemoAccounts({ onPick }: { onPick: (email: string) => void }) {
-  return (
-    <div className="rounded-md border border-border-subtle bg-surface-subtle p-3.5">
-      <p className="text-meta font-medium text-ink-secondary">Demo accounts (seed data)</p>
-      <ul className="mt-2 grid gap-1">
-        {DEMO_ACCOUNTS.map((account) => (
-          <li key={account.email}>
-            <button
-              type="button"
-              onClick={() => onPick(account.email)}
-              className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-meta transition-colors hover:bg-surface-hover"
-            >
-              <span className="font-medium text-ink">{account.label}</span>
-              <span className="text-ink-muted">{account.role}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
