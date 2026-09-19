@@ -39,6 +39,7 @@ import { randomUUID } from 'node:crypto';
 import { CONFIG, type AppConfig } from '../config/env.js';
 import { hashPassword } from '../modules/auth/password.js';
 import { EmailService } from '../modules/email/email.service.js';
+import { loadPasswordOverrides, savePasswordOverride } from './google-sheets-password-store.js';
 
 /**
  * PHASE B DATA LAYER — the whole organization in memory, seeded once at startup.
@@ -66,6 +67,8 @@ export class StoreService implements OnModuleInit {
     // One hash for the shared demo password: argon2id is deliberately slow, so hash it once.
     const hash = await hashPassword(DEMO_PASSWORD);
     for (const user of this.data.users) this.passwords.set(user.id, hash);
+    // TEMPORARY until Phase C: a changed/reset password survives a restart via Google Sheets.
+    for (const [userId, override] of await loadPasswordOverrides()) this.passwords.set(userId, override);
     this.logger.log(
       `Seeded ${this.data.users.length} users, ${this.data.teams.length} team(s) and ${this.data.tasks.length} tasks in ${Date.now() - started}ms`,
     );
@@ -359,6 +362,8 @@ export class StoreService implements OnModuleInit {
 
   setPasswordHash(userId: string, hash: string): void {
     this.passwords.set(userId, hash);
+    // TEMPORARY until Phase C: see google-sheets-password-store.ts.
+    void savePasswordOverride(userId, hash);
   }
 }
 
