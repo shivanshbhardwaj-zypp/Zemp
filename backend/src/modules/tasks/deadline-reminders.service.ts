@@ -16,7 +16,7 @@ export class DeadlineRemindersService {
   constructor(private readonly store: StoreService) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
-  check(): void {
+  async check(): Promise<void> {
     const now = new Date();
     const sentOfType = (type: 'DEADLINE_APPROACHING' | 'TASK_OVERDUE') =>
       new Set(this.store.notifications.filter((n) => n.type === type && n.taskId).map((n) => n.taskId!));
@@ -27,7 +27,7 @@ export class DeadlineRemindersService {
       now,
     );
     for (const reminder of reminders) {
-      this.store.addNotification(
+      await this.store.addNotification(
         { userId: reminder.userId, type: reminder.type, title: reminder.title, body: reminder.body },
         reminder.taskId,
         now,

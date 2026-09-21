@@ -71,14 +71,18 @@ export class InboxService {
     return { count: this.store.notifications.filter((n) => n.userId === user.id && !n.readAt).length };
   }
 
-  markAllRead(user: SeedUser, now: Date): void {
+  async markAllRead(user: SeedUser, now: Date): Promise<void> {
     for (const n of this.store.notifications) if (n.userId === user.id && !n.readAt) n.readAt = now;
+    await this.store.markAllNotificationsRead(user.id, now);
   }
 
-  markRead(user: SeedUser, id: string, now: Date): void {
+  async markRead(user: SeedUser, id: string, now: Date): Promise<void> {
     const notification = this.store.notifications.find((n) => n.id === id && n.userId === user.id);
     if (!notification) throw new DomainError('NOTIFICATION_NOT_FOUND');
-    notification.readAt ??= now;
+    if (!notification.readAt) {
+      notification.readAt = now;
+      await this.store.markNotificationRead(id, now);
+    }
   }
 
   auditLogs(query: ListAuditLogsQuery): Paged<AuditLogEntry> {
@@ -129,15 +133,15 @@ export class InboxService {
     return { ...this.store.organization, updatedAt: this.organizationUpdatedAt().toISOString() };
   }
 
-  updateOrganization(
+  async updateOrganization(
     user: SeedUser,
     input: UpdateOrganizationInput,
     client: ClientContext,
     now: Date,
-  ): OrganizationSettings {
+  ): Promise<OrganizationSettings> {
     const changes = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
-    this.store.updateOrganization(changes);
-    this.store.addAudit({
+    await this.store.updateOrganization(changes);
+    await this.store.addAudit({
       actorId: user.id,
       action: 'SETTINGS_UPDATED',
       resourceType: 'ORGANIZATION',
@@ -180,15 +184,15 @@ export class NotificationsController {
 
   @Post('read-all')
   @ApiOperation({ summary: 'Mark all of your notifications read' })
-  readAll(@CurrentUser() user: SeedUser, @Now() now: Date): null {
-    this.inbox.markAllRead(user, now);
+  async readAll(@CurrentUser() user: SeedUser, @Now() now: Date): Promise<null> {
+    await this.inbox.markAllRead(user, now);
     return null;
   }
 
   @Post(':id/read')
   @ApiOperation({ summary: 'Mark one notification read' })
-  read(@CurrentUser() user: SeedUser, @Param('id', ParseUUIDPipe) id: string, @Now() now: Date): null {
-    this.inbox.markRead(user, id, now);
+  async read(@CurrentUser() user: SeedUser, @Param('id', ParseUUIDPipe) id: string, @Now() now: Date): Promise<null> {
+    await this.inbox.markRead(user, id, now);
     return null;
   }
 }
@@ -226,7 +230,7 @@ export class SettingsController {
     @Body(zodPipe(updateOrganizationSchema)) input: UpdateOrganizationInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): OrganizationSettings {
+  ): Promise<OrganizationSettings> {
     return this.inbox.updateOrganization(user, input, client, now);
   }
 

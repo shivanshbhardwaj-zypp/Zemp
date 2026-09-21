@@ -1,0 +1,341 @@
+// ZEMP Phase C — PostgreSQL schema. Mirrors the SeedData shapes in @zemp/shared/seed exactly, so
+// StoreService's read models and the domain planners never need to change: only where each row
+// comes from changes, not its shape.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SystemRole {
+  SUPER_ADMIN
+  ADMIN
+  SUB_ADMIN
+  EMPLOYEE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskOrigin {
+  ASSIGNED
+  SELF_REPORTED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+enum RiskLevel {
+  ON_TRACK
+  AT_RISK
+  OVERDUE
+  COMPLETED
+}
+
+enum TaskActivityType {
+  CREATED
+  ASSIGNED
+  REASSIGNED
+  UPDATED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  STATUS_CHANGED
+  PROGRESS_CHANGED
+  COMMENT_ADDED
+  COMPLETED
+  REOPENED
+  CANCELLED
+  SUBMITTED_FOR_REVIEW
+  REVIEW_APPROVED
+  REVIEW_CHANGES_REQUESTED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_REASSIGNED
+  TASK_COMPLETED
+  TASK_BLOCKED
+  TASK_CANCELLED
+  TASK_REOPENED
+  TASK_UPDATED
+  COMMENT_ADDED
+  DEADLINE_APPROACHING
+  TASK_OVERDUE
+  REVIEW_REQUESTED
+  REVIEW_APPROVED
+  REVIEW_CHANGES_REQUESTED
+  SYSTEM
+}
+
+enum AuditAction {
+  AUTH_LOGIN
+  AUTH_LOGOUT
+  AUTH_LOGIN_FAILED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_ISSUED
+  PASSWORD_RESET_COMPLETED
+  USER_CREATED
+  USER_UPDATED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  USER_ROLE_CHANGED
+  TEAM_CREATED
+  TEAM_UPDATED
+  TEAM_MEMBER_MOVED
+  TASK_ASSIGNED
+  TASK_REASSIGNED
+  TASK_DUE_DATE_CHANGED
+  TASK_CANCELLED
+  TASK_SELF_REPORTED
+  TASK_REVIEW_APPROVED
+  TASK_REVIEW_CHANGES_REQUESTED
+  SETTINGS_UPDATED
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum AuditResourceType {
+  USER
+  TEAM
+  TASK
+  SESSION
+  ORGANIZATION
+}
+
+/// One row, singleton. `id` is always "org" so it's trivially upsertable.
+model Organization {
+  id        String   @id @default("org")
+  name      String
+  timezone  String
+  updatedAt DateTime @default(now())
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String
+  role         SystemRole
+  isActive     Boolean    @default(true)
+  jobTitle     String
+  employeeCode String     @unique
+  phone        String?
+  passwordHash String
+  createdAt    DateTime   @default(now())
+  lastLoginAt  DateTime?
+
+  memberships     Membership[]
+  ownedTeams      Team[]               @relation("TeamOwner")
+  assignedTasks   Task[]               @relation("TaskAssignee")
+  assignedByTasks Task[]               @relation("TaskAssignor")
+  reviewingTasks  Task[]               @relation("TaskReviewer")
+  createdTasks    Task[]               @relation("TaskCreatedBy")
+  updatedTasks    Task[]               @relation("TaskUpdatedBy")
+  activities      Activity[]
+  comments        Comment[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  snapshots       Snapshot[]
+  sessions        Session[]
+  passwordResets  PasswordResetToken[]
+
+  @@index([role])
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String?
+  owner       User?    @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  memberships Membership[]
+  tasks       Task[]
+  snapshots   Snapshot[]
+}
+
+model Membership {
+  id       String    @id @default(uuid())
+  teamId   String
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  @@index([userId, leftAt])
+  @@index([teamId])
+}
+
+model Task {
+  id              String        @id @default(uuid())
+  title           String
+  description     String?
+  status          TaskStatus
+  priority        TaskPriority
+  progress        Int
+  assigneeId      String
+  assignee        User          @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignorId      String
+  assignor        User          @relation("TaskAssignor", fields: [assignorId], references: [id])
+  teamId          String?
+  team            Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  startAt         DateTime?
+  dueAt           DateTime
+  completedAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now())
+  origin          TaskOrigin
+  reviewerId      String?
+  reviewer        User?         @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewStatus    ReviewStatus?
+  reviewedAt      DateTime?
+  reviewNote      String?
+  evidenceUrl     String?
+  incentiveAmount Int?
+  completionNote  String?
+  createdById     String
+  createdBy       User          @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  updatedById     String
+  updatedBy       User          @relation("TaskUpdatedBy", fields: [updatedById], references: [id])
+
+  activities Activity[]
+  comments   Comment[]
+
+  @@index([assigneeId])
+  @@index([teamId])
+  @@index([status])
+  @@index([dueAt])
+}
+
+model Activity {
+  id        String           @id @default(uuid())
+  taskId    String
+  task      Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User             @relation(fields: [actorId], references: [id])
+  type      TaskActivityType
+  fromValue String?
+  toValue   String?
+  note      String?
+  createdAt DateTime         @default(now())
+
+  @@index([taskId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  taskId    String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id           String            @id @default(uuid())
+  actorId      String?
+  actor        User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action       AuditAction
+  resourceType AuditResourceType
+  resourceId   String?
+  result       AuditResult       @default(SUCCESS)
+  metadata     Json?
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime          @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+/// Daily per-user/per-team workload snapshot, written once a day (Phase C+; empty for now).
+model Snapshot {
+  id             String     @id @default(uuid())
+  date           String
+  userId         String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId         String?
+  team           Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  total          Int
+  completed      Int
+  todo           Int
+  inProgress     Int
+  blocked        Int
+  overdue        Int
+  completedOnDay Int
+  assignedOnDay  Int
+  risk           RiskLevel?
+  createdAt      DateTime   @default(now())
+
+  @@index([date])
+  @@index([userId])
+}
+
+/// Backs SessionService 1:1 — same fields, same semantics, just durable across restarts.
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Backs AuthService's resetTokens map 1:1 — single-use, short-lived.
+model PasswordResetToken {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+
+  @@index([userId])
+}

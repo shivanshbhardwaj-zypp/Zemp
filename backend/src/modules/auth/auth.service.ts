@@ -7,7 +7,8 @@ import {
   type PasswordResetRequestInput,
   type SessionUser,
 } from '@zemp/shared';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { PrismaService } from '../../data/prisma.service.js';
 import { StoreService, type SeedUser } from '../../data/store.service.js';
 import { hashPassword, verifyPassword } from './password.js';
 import { SessionService, type Session } from './session.service.js';
@@ -23,13 +24,12 @@ export interface ClientContext {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
-  /** token → { userId, expiresAt }. Phase C moves this to a `password_reset_tokens` table. */
-  private readonly resetTokens = new Map<string, { userId: string; expiresAt: number }>();
   private decoyHashPromise: Promise<string> | null = null;
 
   constructor(
     private readonly store: StoreService,
     private readonly sessions: SessionService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -42,7 +42,7 @@ export class AuthService {
     const matches = await verifyPassword(input.password, hash ?? (await this.decoyHash()));
 
     if (!user || !matches) {
-      this.store.addAudit({
+      await this.store.addAudit({
         actorId: user?.id ?? null,
         action: 'AUTH_LOGIN_FAILED',
         resourceType: 'SESSION',
@@ -57,7 +57,7 @@ export class AuthService {
 
     // Inactive status is revealed only after a correct password, so it cannot be used to probe.
     if (!user.isActive) {
-      this.store.addAudit({
+      await this.store.addAudit({
         actorId: user.id,
         action: 'AUTH_LOGIN_FAILED',
         resourceType: 'SESSION',
@@ -70,9 +70,10 @@ export class AuthService {
       throw new DomainError('ACCOUNT_INACTIVE');
     }
 
-    const session = this.sessions.create(user.id, client, now);
+    const session = await this.sessions.create(user.id, client, now);
     user.lastLoginAt = now;
-    this.store.addAudit({
+    await this.store.saveUser(user);
+    await this.store.addAudit({
       actorId: user.id,
       action: 'AUTH_LOGIN',
       resourceType: 'SESSION',
@@ -89,9 +90,9 @@ export class AuthService {
     return this.decoyHashPromise;
   }
 
-  logout(user: SeedUser, session: Session, client: ClientContext, now: Date): void {
-    this.sessions.destroy(session.id);
-    this.store.addAudit({
+  async logout(user: SeedUser, session: Session, client: ClientContext, now: Date): Promise<void> {
+    await this.sessions.destroy(session.id);
+    await this.store.addAudit({
       actorId: user.id,
       action: 'AUTH_LOGOUT',
       resourceType: 'SESSION',
@@ -115,9 +116,9 @@ export class AuthService {
   ): Promise<void> {
     const current = await verifyPassword(input.currentPassword, this.store.passwordHash(user.id));
     if (!current) throw new DomainError('INVALID_CURRENT_PASSWORD');
-    this.store.setPasswordHash(user.id, await hashPassword(input.newPassword));
-    this.sessions.destroyAllFor(user.id, session.id);
-    this.store.addAudit({
+    await this.store.setPasswordHash(user.id, await hashPassword(input.newPassword));
+    await this.sessions.destroyAllFor(user.id, session.id);
+    await this.store.addAudit({
       actorId: user.id,
       action: 'PASSWORD_CHANGED',
       resourceType: 'USER',
@@ -131,11 +132,11 @@ export class AuthService {
    * Always returns the same response whether or not the address exists — an attacker learns nothing
    * about who has an account. V0.1 has no mail service, so the link goes to the server log only.
    */
-  requestPasswordReset(input: PasswordResetRequestInput, client: ClientContext, now: Date): void {
+  async requestPasswordReset(input: PasswordResetRequestInput, client: ClientContext, now: Date): Promise<void> {
     const user = this.store.findUserByEmail(input.email);
     if (!user?.isActive) return;
-    const token = this.issueResetToken(user.id, now);
-    this.store.addAudit({
+    const token = await this.issueResetToken(user.id, now);
+    await this.store.addAudit({
       actorId: null,
       action: 'PASSWORD_RESET_REQUESTED',
       resourceType: 'USER',
@@ -147,24 +148,24 @@ export class AuthService {
     this.logger.log(`Password reset link for ${input.email}: /reset-password?token=${token}`);
   }
 
-  issueResetToken(userId: string, now: Date): string {
-    // Sweep expired tokens on the path that grows the map — see SessionService.pruneExpired.
-    for (const [token, entry] of this.resetTokens) {
-      if (entry.expiresAt < now.getTime()) this.resetTokens.delete(token);
-    }
+  async issueResetToken(userId: string, now: Date): Promise<string> {
+    // Sweep expired tokens on the path that grows the table, so it never accumulates unboundedly.
+    await this.prisma.passwordResetToken.deleteMany({ where: { expiresAt: { lt: now } } });
     const token = randomBytes(32).toString('base64url');
-    this.resetTokens.set(token, { userId, expiresAt: now.getTime() + RESET_TTL_MS });
+    await this.prisma.passwordResetToken.create({
+      data: { token, userId, expiresAt: new Date(now.getTime() + RESET_TTL_MS) },
+    });
     return token;
   }
 
   /** Single-use: the token is consumed before the new password is stored. */
   async confirmPasswordReset(input: PasswordResetConfirmInput, client: ClientContext, now: Date): Promise<void> {
-    const entry = this.findResetToken(input.token);
-    if (!entry || entry.expiresAt < now.getTime()) throw new DomainError('INVALID_RESET_TOKEN');
-    this.resetTokens.delete(entry.token);
-    this.store.setPasswordHash(entry.userId, await hashPassword(input.newPassword));
-    this.sessions.destroyAllFor(entry.userId);
-    this.store.addAudit({
+    const entry = await this.prisma.passwordResetToken.findUnique({ where: { token: input.token } });
+    if (!entry || entry.expiresAt < now) throw new DomainError('INVALID_RESET_TOKEN');
+    await this.prisma.passwordResetToken.delete({ where: { token: input.token } }).catch(() => undefined);
+    await this.store.setPasswordHash(entry.userId, await hashPassword(input.newPassword));
+    await this.sessions.destroyAllFor(entry.userId);
+    await this.store.addAudit({
       actorId: entry.userId,
       action: 'PASSWORD_RESET_COMPLETED',
       resourceType: 'USER',
@@ -172,17 +173,5 @@ export class AuthService {
       at: now,
       ...client,
     });
-  }
-
-  /** Compared in constant time so a token cannot be guessed character by character. */
-  private findResetToken(candidate: string): { token: string; userId: string; expiresAt: number } | null {
-    const candidateBuffer = Buffer.from(candidate);
-    for (const [token, entry] of this.resetTokens) {
-      const known = Buffer.from(token);
-      if (known.length === candidateBuffer.length && timingSafeEqual(known, candidateBuffer)) {
-        return { token, ...entry };
-      }
-    }
-    return null;
   }
 }

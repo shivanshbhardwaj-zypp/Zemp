@@ -55,14 +55,14 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'End the current session' })
-  logout(
+  async logout(
     @CurrentUser() user: SeedUser,
     @CurrentSession() session: Session,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
     @Res({ passthrough: true }) response: Response,
-  ): null {
-    this.auth.logout(user, session, client, now);
+  ): Promise<null> {
+    await this.auth.logout(user, session, client, now);
     this.sessions.clear(response);
     return null;
   }
@@ -93,12 +93,12 @@ export class AuthController {
   @Post('password-reset/request')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a reset link (always succeeds, to avoid revealing accounts)' })
-  requestReset(
+  async requestReset(
     @Body(zodPipe(passwordResetRequestSchema)) input: PasswordResetRequestInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): null {
-    this.auth.requestPasswordReset(input, client, now);
+  ): Promise<null> {
+    await this.auth.requestPasswordReset(input, client, now);
     return null;
   }
 

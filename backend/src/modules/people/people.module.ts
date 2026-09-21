@@ -80,7 +80,7 @@ export class EmployeesController {
     @Body(zodPipe(updateEmployeeSchema)) input: UpdateEmployeeInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): EmployeeDetail {
+  ): Promise<EmployeeDetail> {
     return this.people.updateEmployee(user, id, input, client, now);
   }
 
@@ -93,7 +93,7 @@ export class EmployeesController {
     @Body(zodPipe(changeRoleSchema)) input: ChangeRoleInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): EmployeeDetail {
+  ): Promise<EmployeeDetail> {
     return this.people.changeRole(user, id, input, client, now);
   }
 }
@@ -135,7 +135,7 @@ export class AdminsController {
     @Body(zodPipe(updateAdminSchema)) input: UpdateAdminInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): AdminListItem {
+  ): Promise<AdminListItem> {
     return this.people.updateAdmin(user, id, input, client, now);
   }
 }
@@ -153,7 +153,7 @@ export class AccountsController {
     @Param('id', ParseUUIDPipe) id: string,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): EmployeeDetail {
+  ): Promise<EmployeeDetail> {
     return this.people.setActive(user, id, false, client, now);
   }
 
@@ -165,7 +165,7 @@ export class AccountsController {
     @Param('id', ParseUUIDPipe) id: string,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): EmployeeDetail {
+  ): Promise<EmployeeDetail> {
     return this.people.setActive(user, id, true, client, now);
   }
 
@@ -177,7 +177,7 @@ export class AccountsController {
     @Param('id', ParseUUIDPipe) id: string,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): PasswordResetIssued {
+  ): Promise<PasswordResetIssued> {
     return this.people.issuePasswordReset(user, id, client, now);
   }
 }

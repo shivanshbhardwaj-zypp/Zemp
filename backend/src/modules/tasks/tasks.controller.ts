@@ -67,7 +67,7 @@ export class TasksController {
     @Body(zodPipe(createTaskSchema)) input: CreateTaskInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.tasks.create(user, input, client, now);
   }
 
@@ -87,7 +87,7 @@ export class TasksController {
     @Body(zodPipe(updateTaskSchema)) input: UpdateTaskInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.tasks.update(user, id, input, client, now);
   }
 
@@ -100,7 +100,7 @@ export class TasksController {
     @Body(zodPipe(updateProgressSchema)) input: { progress: number },
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.tasks.updateProgress(user, id, input.progress, client, now);
   }
 
@@ -113,7 +113,7 @@ export class TasksController {
     @Body(zodPipe(changeStatusSchema)) input: ChangeStatusInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.tasks.changeStatus(user, id, input, client, now);
   }
 
@@ -126,7 +126,7 @@ export class TasksController {
     @Body(zodPipe(reassignTaskSchema)) input: ReassignTaskInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.tasks.reassign(user, id, input, client, now);
   }
 
@@ -153,7 +153,7 @@ export class TasksController {
     @Body(zodPipe(createCommentSchema)) input: CreateCommentInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskCommentEntry {
+  ): Promise<TaskCommentEntry> {
     return this.tasks.addComment(user, id, input, client, now);
   }
 }

@@ -113,7 +113,7 @@ export class TeamsService {
     );
   }
 
-  create(viewer: SeedUser, input: CreateTeamInput, client: ClientContext, now: Date): TeamDetail {
+  async create(viewer: SeedUser, input: CreateTeamInput, client: ClientContext, now: Date): Promise<TeamDetail> {
     this.assertUniqueName(input.name);
     this.assertOwner(input.ownerId);
     const team: SeedTeam = {
@@ -125,8 +125,8 @@ export class TeamsService {
       createdAt: now,
       updatedAt: now,
     };
-    this.store.teams.push(team);
-    this.store.addAudit({
+    await this.store.createTeam(team);
+    await this.store.addAudit({
       actorId: viewer.id,
       action: 'TEAM_CREATED',
       resourceType: 'TEAM',
@@ -142,7 +142,7 @@ export class TeamsService {
     return this.detail(this.load(viewer, id), viewer, now);
   }
 
-  update(viewer: SeedUser, id: string, input: UpdateTeamInput, client: ClientContext, now: Date): TeamDetail {
+  async update(viewer: SeedUser, id: string, input: UpdateTeamInput, client: ClientContext, now: Date): Promise<TeamDetail> {
     const team = this.load(viewer, id);
     this.assertUniqueName(input.name, team.id);
     this.assertOwner(input.ownerId);
@@ -151,7 +151,8 @@ export class TeamsService {
     }
     const changes = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
     Object.assign(team, changes, { updatedAt: now });
-    this.store.addAudit({
+    await this.store.saveTeam(team);
+    await this.store.addAudit({
       actorId: viewer.id,
       action: 'TEAM_UPDATED',
       resourceType: 'TEAM',
@@ -198,7 +199,7 @@ export class TeamsService {
       });
   }
 
-  addMember(viewer: SeedUser, id: string, input: AddTeamMemberInput, client: ClientContext, now: Date): TeamDetail {
+  async addMember(viewer: SeedUser, id: string, input: AddTeamMemberInput, client: ClientContext, now: Date): Promise<TeamDetail> {
     const team = this.load(viewer, id);
     if (!team.isActive) throw new DomainError('INVALID_TEAM', 'This team is inactive.');
     const person = this.store.findUser(input.userId);
@@ -208,16 +209,19 @@ export class TeamsService {
     const from = this.store.currentTeam(person.id);
     if (from?.id !== team.id) {
       for (const membership of this.store.memberships) {
-        if (membership.userId === person.id && !membership.leftAt) membership.leftAt = now;
+        if (membership.userId === person.id && !membership.leftAt) {
+          membership.leftAt = now;
+          await this.store.saveMembership(membership);
+        }
       }
-      this.store.memberships.push({
+      await this.store.createMembership({
         id: this.store.newId(),
         teamId: team.id,
         userId: person.id,
         joinedAt: now,
         leftAt: null,
       });
-      this.store.addAudit({
+      await this.store.addAudit({
         actorId: viewer.id,
         action: 'TEAM_MEMBER_MOVED',
         resourceType: 'USER',
@@ -285,7 +289,7 @@ export class TeamsController {
     @Body(zodPipe(createTeamSchema)) input: CreateTeamInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TeamDetail {
+  ): Promise<TeamDetail> {
     return this.teams.create(user, input, client, now);
   }
 
@@ -305,7 +309,7 @@ export class TeamsController {
     @Body(zodPipe(updateTeamSchema)) input: UpdateTeamInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TeamDetail {
+  ): Promise<TeamDetail> {
     return this.teams.update(user, id, input, client, now);
   }
 
@@ -325,7 +329,7 @@ export class TeamsController {
     @Body(zodPipe(addTeamMemberSchema)) input: AddTeamMemberInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TeamDetail {
+  ): Promise<TeamDetail> {
     return this.teams.addMember(user, id, input, client, now);
   }
 }

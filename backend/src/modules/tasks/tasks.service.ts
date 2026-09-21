@@ -45,9 +45,10 @@ export class TasksService {
 
   /**
    * Applies a planner's output: the patch, the activity trail, the notifications and the audit
-   * entries land together. Phase C wraps this in a database transaction.
+   * entries land together. The task itself must already be persisted (via createTask) before this
+   * runs — every call site loads an existing task except `create`, which creates it first.
    */
-  applyPlan(task: SeedTask, actor: NamedActor, plan: TaskPlan, client: ClientContext, now: Date): void {
+  async applyPlan(task: SeedTask, actor: NamedActor, plan: TaskPlan, client: ClientContext, now: Date): Promise<void> {
     const changes = { ...plan.patch };
     delete changes.resetDeadlineReminders; // A planner flag, not a stored column.
     Object.assign(task, changes);
@@ -55,10 +56,11 @@ export class TasksService {
       task.updatedAt = now;
       task.updatedById = actor.id;
     }
-    for (const activity of plan.activities) this.store.addActivity(task.id, actor.id, activity, now);
-    for (const notification of plan.notifications) this.store.addNotification(notification, task.id, now);
+    await this.store.saveTask(task);
+    for (const activity of plan.activities) await this.store.addActivity(task.id, actor.id, activity, now);
+    for (const notification of plan.notifications) await this.store.addNotification(notification, task.id, now);
     for (const entry of plan.audits) {
-      this.store.addAudit({
+      await this.store.addAudit({
         actorId: actor.id,
         action: entry.action,
         resourceType: 'TASK',
@@ -158,7 +160,7 @@ export class TasksService {
       .sort((a, b) => Number(a.role === 'EMPLOYEE') - Number(b.role === 'EMPLOYEE') || a.name.localeCompare(b.name));
   }
 
-  create(user: SeedUser, input: CreateTaskInput, client: ClientContext, now: Date): TaskDetail {
+  async create(user: SeedUser, input: CreateTaskInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const plan = planCreateTask({
       actor,
@@ -183,8 +185,8 @@ export class TasksService {
       createdById: user.id,
       updatedById: user.id,
     };
-    this.store.tasks.push(task);
-    this.applyPlan(task, actor, { patch: {}, ...plan }, client, now);
+    await this.store.createTask(task);
+    await this.applyPlan(task, actor, { patch: {}, ...plan }, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
@@ -193,7 +195,7 @@ export class TasksService {
     return this.store.taskDetail(this.store.loadTask(actor, id), actor, now);
   }
 
-  update(user: SeedUser, id: string, input: UpdateTaskInput, client: ClientContext, now: Date): TaskDetail {
+  async update(user: SeedUser, id: string, input: UpdateTaskInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planTaskUpdate({
@@ -210,7 +212,7 @@ export class TasksService {
         incentiveAmount: input.incentiveAmount,
       },
     });
-    this.applyPlan(task, actor, plan, client, now);
+    await this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
@@ -219,15 +221,15 @@ export class TasksService {
     return summarizeIncentives(this.store.tasks.filter((t) => t.assigneeId === user.id));
   }
 
-  updateProgress(user: SeedUser, id: string, progress: number, client: ClientContext, now: Date): TaskDetail {
+  async updateProgress(user: SeedUser, id: string, progress: number, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planProgressUpdate({ actor, task, progress, assigneeRole: this.store.assigneeRoleOf(task), now });
-    this.applyPlan(task, actor, plan, client, now);
+    await this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
-  changeStatus(user: SeedUser, id: string, input: ChangeStatusInput, client: ClientContext, now: Date): TaskDetail {
+  async changeStatus(user: SeedUser, id: string, input: ChangeStatusInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planStatusChange({
@@ -238,11 +240,11 @@ export class TasksService {
       assigneeRole: this.store.assigneeRoleOf(task),
       now,
     });
-    this.applyPlan(task, actor, plan, client, now);
+    await this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
-  reassign(user: SeedUser, id: string, input: ReassignTaskInput, client: ClientContext, now: Date): TaskDetail {
+  async reassign(user: SeedUser, id: string, input: ReassignTaskInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planReassign({
@@ -252,7 +254,7 @@ export class TasksService {
       teamId: input.teamId,
       assigneeRole: this.store.assigneeRoleOf(task),
     });
-    this.applyPlan(task, actor, plan, client, now);
+    await this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
@@ -279,13 +281,13 @@ export class TasksService {
       }));
   }
 
-  addComment(user: SeedUser, id: string, input: CreateCommentInput, client: ClientContext, now: Date): TaskCommentEntry {
+  async addComment(user: SeedUser, id: string, input: CreateCommentInput, client: ClientContext, now: Date): Promise<TaskCommentEntry> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planComment({ actor, task });
     const comment = { id: this.store.newId(), taskId: task.id, authorId: user.id, body: input.body, createdAt: now };
-    this.store.comments.push(comment);
-    this.applyPlan(task, actor, plan, client, now);
+    await this.store.addComment(comment);
+    await this.applyPlan(task, actor, plan, client, now);
     return {
       id: comment.id,
       body: comment.body,

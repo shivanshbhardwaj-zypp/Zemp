@@ -27,7 +27,6 @@ import {
   type SeedActivity,
   type SeedAuditLog,
   type SeedComment,
-  type SeedData,
   type SeedMembership,
   type SeedNotification,
   type SeedSnapshot,
@@ -39,36 +38,99 @@ import { randomUUID } from 'node:crypto';
 import { CONFIG, type AppConfig } from '../config/env.js';
 import { hashPassword } from '../modules/auth/password.js';
 import { EmailService } from '../modules/email/email.service.js';
+import { Prisma } from '../generated/prisma/client.js';
+import { PrismaService } from './prisma.service.js';
+
+/** The whole organization, loaded once at startup and kept in memory for reads. */
+interface WorkingSet {
+  organization: { name: string; timezone: string };
+  users: SeedUser[];
+  teams: SeedTeam[];
+  memberships: SeedMembership[];
+  tasks: SeedTask[];
+  activities: SeedActivity[];
+  comments: SeedComment[];
+  notifications: SeedNotification[];
+  auditLogs: SeedAuditLog[];
+  snapshots: SeedSnapshot[];
+}
 
 /**
- * PHASE B DATA LAYER — the whole organization in memory, seeded once at startup.
- *
- * Every module reaches its rows through this service rather than through a global, so Phase C can
- * replace the body of each accessor with a Prisma query without touching a single service or
- * controller. Reads return the live row objects: services mutate them only through the domain
- * planners in `@zemp/shared`, which is where the business rules live.
+ * PHASE C DATA LAYER — Postgres is the source of truth; this in-memory working set is a read
+ * cache loaded once at startup (and kept current by every write going through this service). All
+ * the reporting/scope logic below is unchanged from Phase B on purpose: it's plain, already-tested
+ * array code, and rewriting it as a pile of individual queries would trade a working, readable
+ * implementation for a riskier one without changing what it computes.
  */
 @Injectable()
 export class StoreService implements OnModuleInit {
   private readonly logger = new Logger(StoreService.name);
-  private data!: SeedData;
-  /** userId → argon2id hash. Plaintext passwords are never stored, logged or returned. */
+  private data!: WorkingSet;
+  /** userId → argon2id hash, mirrored from the User.passwordHash column. */
   private readonly passwords = new Map<string, string>();
 
   constructor(
     @Inject(CONFIG) private readonly config: AppConfig,
     private readonly email: EmailService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     const started = Date.now();
-    this.data = generateSeed({ timeZone: this.config.ORG_TIME_ZONE });
-    // One hash for the shared demo password: argon2id is deliberately slow, so hash it once.
-    const hash = await hashPassword(DEMO_PASSWORD);
-    for (const user of this.data.users) this.passwords.set(user.id, hash);
+    const isEmpty = (await this.prisma.organization.findUnique({ where: { id: 'org' } })) === null;
+    if (isEmpty) await this.seedDatabase();
+    await this.loadFromDatabase();
     this.logger.log(
-      `Seeded ${this.data.users.length} users, ${this.data.teams.length} team(s) and ${this.data.tasks.length} tasks in ${Date.now() - started}ms`,
+      `Loaded ${this.data.users.length} users, ${this.data.teams.length} team(s) and ${this.data.tasks.length} tasks in ${Date.now() - started}ms` +
+        (isEmpty ? ' (freshly seeded)' : ''),
     );
+  }
+
+  /** First boot only: writes the deterministic demo roster into an empty database. */
+  private async seedDatabase(): Promise<void> {
+    const seed = generateSeed({ timeZone: this.config.ORG_TIME_ZONE });
+    const hash = await hashPassword(DEMO_PASSWORD);
+    await this.prisma.$transaction([
+      this.prisma.organization.create({
+        data: { id: 'org', name: seed.organization.name, timezone: seed.organization.timezone },
+      }),
+      this.prisma.user.createMany({
+        data: seed.users.map((u) => ({ ...u, passwordHash: hash })),
+      }),
+      this.prisma.team.createMany({ data: seed.teams }),
+      this.prisma.membership.createMany({ data: seed.memberships }),
+    ]);
+  }
+
+  private async loadFromDatabase(): Promise<void> {
+    const [org, users, teams, memberships, tasks, activities, comments, notifications, auditLogs, snapshots] =
+      await Promise.all([
+        this.prisma.organization.findUniqueOrThrow({ where: { id: 'org' } }),
+        this.prisma.user.findMany({ orderBy: { createdAt: 'asc' } }),
+        this.prisma.team.findMany(),
+        this.prisma.membership.findMany(),
+        this.prisma.task.findMany(),
+        this.prisma.activity.findMany(),
+        this.prisma.comment.findMany(),
+        this.prisma.notification.findMany(),
+        this.prisma.auditLog.findMany(),
+        this.prisma.snapshot.findMany(),
+      ]);
+
+    for (const u of users) this.passwords.set(u.id, u.passwordHash);
+
+    this.data = {
+      organization: { name: org.name, timezone: org.timezone },
+      users: users.map(({ passwordHash: _passwordHash, ...u }) => u) as SeedUser[],
+      teams: teams as SeedTeam[],
+      memberships: memberships as SeedMembership[],
+      tasks: tasks as SeedTask[],
+      activities: activities as SeedActivity[],
+      comments: comments as SeedComment[],
+      notifications: notifications.map((n) => ({ ...n, taskId: n.taskId ?? null })) as SeedNotification[],
+      auditLogs: auditLogs as SeedAuditLog[],
+      snapshots: snapshots as SeedSnapshot[],
+    };
   }
 
   // ── Organization ─────────────────────────────────────────────────────────
@@ -81,11 +143,12 @@ export class StoreService implements OnModuleInit {
     return this.data.organization.timezone;
   }
 
-  updateOrganization(patch: Partial<{ name: string; timezone: string }>): void {
+  async updateOrganization(patch: Partial<{ name: string; timezone: string }>): Promise<void> {
     Object.assign(this.data.organization, patch);
+    await this.prisma.organization.update({ where: { id: 'org' }, data: patch });
   }
 
-  // ── Collections ──────────────────────────────────────────────────────────
+  // ── Collections (read-only views over the working set) ─────────────────────
 
   get users(): SeedUser[] {
     return this.data.users;
@@ -305,28 +368,83 @@ export class StoreService implements OnModuleInit {
     return allowedTransitions(actor, task, this.assigneeRoleOf(task));
   }
 
-  // ── Writes ───────────────────────────────────────────────────────────────
+  // ── Writes: users, teams, memberships, tasks ────────────────────────────────
+  //
+  // Callers mutate the in-memory row (or build a new one) then await the matching save*/create*
+  // call, which upserts it into Postgres. Keeping the in-memory array as the read source (rather
+  // than re-querying after every write) is what lets every read model above stay synchronous.
 
-  addActivity(
+  async createUser(user: SeedUser, passwordHash: string): Promise<void> {
+    this.data.users.push(user);
+    this.passwords.set(user.id, passwordHash);
+    await this.prisma.user.create({ data: { ...user, passwordHash } });
+  }
+
+  async saveUser(user: SeedUser): Promise<void> {
+    await this.prisma.user.update({ where: { id: user.id }, data: { ...user, id: undefined } });
+  }
+
+  async createTeam(team: SeedTeam): Promise<void> {
+    this.data.teams.push(team);
+    await this.prisma.team.create({ data: team });
+  }
+
+  async saveTeam(team: SeedTeam): Promise<void> {
+    await this.prisma.team.update({ where: { id: team.id }, data: { ...team, id: undefined } });
+  }
+
+  async createMembership(membership: SeedMembership): Promise<void> {
+    this.data.memberships.push(membership);
+    await this.prisma.membership.create({ data: membership });
+  }
+
+  async saveMembership(membership: SeedMembership): Promise<void> {
+    await this.prisma.membership.update({ where: { id: membership.id }, data: { leftAt: membership.leftAt } });
+  }
+
+  async createTask(task: SeedTask): Promise<void> {
+    this.data.tasks.push(task);
+    await this.prisma.task.create({ data: { ...task, id: task.id } });
+  }
+
+  async saveTask(task: SeedTask): Promise<void> {
+    await this.prisma.task.update({ where: { id: task.id }, data: { ...task, id: undefined } });
+  }
+
+  // ── Writes: activity, notifications, audit ──────────────────────────────────
+
+  async addActivity(
     taskId: string,
     actorId: string,
     draft: Omit<SeedActivity, 'id' | 'taskId' | 'actorId' | 'createdAt'>,
     at: Date,
-  ): void {
-    this.data.activities.push({ id: this.newId(), taskId, actorId, ...draft, createdAt: at });
+  ): Promise<void> {
+    const entry: SeedActivity = { id: this.newId(), taskId, actorId, ...draft, createdAt: at };
+    this.data.activities.push(entry);
+    await this.prisma.activity.create({ data: entry });
   }
 
-  addNotification(draft: NotificationDraft, taskId: string | null, at: Date): void {
-    this.data.notifications.unshift({ id: this.newId(), ...draft, taskId, readAt: null, createdAt: at });
+  async addNotification(draft: NotificationDraft, taskId: string | null, at: Date): Promise<void> {
+    const entry: SeedNotification = { id: this.newId(), ...draft, taskId, readAt: null, createdAt: at };
+    this.data.notifications.unshift(entry);
+    await this.prisma.notification.create({ data: entry });
     const recipient = this.findUser(draft.userId);
     if (recipient) this.email.send(recipient.email, draft.title, draft.body);
+  }
+
+  async markNotificationRead(id: string, at: Date): Promise<void> {
+    await this.prisma.notification.update({ where: { id }, data: { readAt: at } });
+  }
+
+  async markAllNotificationsRead(userId: string, at: Date): Promise<void> {
+    await this.prisma.notification.updateMany({ where: { userId, readAt: null }, data: { readAt: at } });
   }
 
   /**
    * Audit entries are append-only (requirements §20): nothing in the API updates or deletes one.
    * The IP and user agent come from the request so a security review can trace who did what.
    */
-  addAudit(entry: {
+  async addAudit(entry: {
     actorId: string | null;
     action: AuditAction;
     resourceType: AuditResourceType;
@@ -336,8 +454,8 @@ export class StoreService implements OnModuleInit {
     result?: AuditResult;
     ip?: string | null;
     userAgent?: string | null;
-  }): void {
-    this.data.auditLogs.push({
+  }): Promise<void> {
+    const row: SeedAuditLog = {
       id: this.newId(),
       actorId: entry.actorId,
       action: entry.action,
@@ -348,7 +466,16 @@ export class StoreService implements OnModuleInit {
       ip: entry.ip ?? null,
       userAgent: entry.userAgent ?? null,
       createdAt: entry.at,
+    };
+    this.data.auditLogs.push(row);
+    await this.prisma.auditLog.create({
+      data: { ...row, metadata: (row.metadata as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull },
     });
+  }
+
+  async addComment(comment: SeedComment): Promise<void> {
+    this.data.comments.push(comment);
+    await this.prisma.comment.create({ data: comment });
   }
 
   // ── Credentials ──────────────────────────────────────────────────────────
@@ -357,8 +484,9 @@ export class StoreService implements OnModuleInit {
     return this.passwords.get(userId);
   }
 
-  setPasswordHash(userId: string, hash: string): void {
+  async setPasswordHash(userId: string, hash: string): Promise<void> {
     this.passwords.set(userId, hash);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
   }
 }
 

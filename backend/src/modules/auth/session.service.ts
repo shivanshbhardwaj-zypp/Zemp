@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { CookieOptions, Response } from 'express';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { CONFIG, type AppConfig } from '../../config/env.js';
+import { PrismaService } from '../../data/prisma.service.js';
 
 export const SESSION_COOKIE = 'zemp_session';
 export const CSRF_COOKIE = 'zemp_csrf';
@@ -18,35 +19,23 @@ export interface Session {
 }
 
 /**
- * Sessions live server-side and reach the browser as an opaque, HttpOnly cookie — the token itself
+ * Sessions live in Postgres and reach the browser as an opaque, HttpOnly cookie — the token itself
  * is never readable by scripts, so an XSS bug cannot lift it. A second, script-readable cookie
- * carries the CSRF token for the double-submit check (requirements §17).
- *
- * Phase C moves this map into a `sessions` table; the interface stays the same.
+ * carries the CSRF token for the double-submit check (requirements §17). Backed by a table (not
+ * memory) so a session survives a server restart instead of forcing everyone to sign in again.
  */
 @Injectable()
 export class SessionService {
-  private readonly sessions = new Map<string, Session>();
-
-  constructor(@Inject(CONFIG) private readonly config: AppConfig) {}
+  constructor(
+    @Inject(CONFIG) private readonly config: AppConfig,
+    private readonly prisma: PrismaService,
+  ) {}
 
   private get ttlMs(): number {
     return this.config.SESSION_TTL_HOURS * 60 * 60 * 1000;
   }
 
-  /**
-   * Sweeps expired sessions on the path that grows the map, so it never leaks unbounded in a
-   * long-running process — growth stays proportional to concurrently-live sessions, not all-time
-   * logins. Cheap: only entries actually past expiry are touched.
-   */
-  private pruneExpired(now: Date): void {
-    for (const [id, session] of this.sessions) {
-      if (session.expiresAt <= now) this.sessions.delete(id);
-    }
-  }
-
-  create(userId: string, context: { ip?: string | null; userAgent?: string | null }, now = new Date()): Session {
-    this.pruneExpired(now);
+  async create(userId: string, context: { ip?: string | null; userAgent?: string | null }, now = new Date()): Promise<Session> {
     const session: Session = {
       id: randomBytes(32).toString('base64url'),
       userId,
@@ -56,32 +45,32 @@ export class SessionService {
       ip: context.ip ?? null,
       userAgent: context.userAgent ?? null,
     };
-    this.sessions.set(session.id, session);
+    await this.prisma.session.create({ data: session });
     return session;
   }
 
   /** Returns the live session, sliding its expiry; an expired one is dropped immediately. */
-  get(id: string | undefined, now = new Date()): Session | null {
+  async get(id: string | undefined, now = new Date()): Promise<Session | null> {
     if (!id) return null;
-    const session = this.sessions.get(id);
+    const session = await this.prisma.session.findUnique({ where: { id } });
     if (!session) return null;
     if (session.expiresAt <= now) {
-      this.sessions.delete(id);
+      await this.prisma.session.delete({ where: { id } }).catch(() => undefined);
       return null;
     }
-    session.expiresAt = new Date(now.getTime() + this.ttlMs);
-    return session;
+    const expiresAt = new Date(now.getTime() + this.ttlMs);
+    await this.prisma.session.update({ where: { id }, data: { expiresAt } });
+    return { ...session, expiresAt };
   }
 
-  destroy(id: string | undefined): void {
-    if (id) this.sessions.delete(id);
+  async destroy(id: string | undefined): Promise<void> {
+    if (!id) return;
+    await this.prisma.session.delete({ where: { id } }).catch(() => undefined);
   }
 
   /** Every other session of this user — used after a password change or reset. */
-  destroyAllFor(userId: string, except?: string): void {
-    for (const [id, session] of this.sessions) {
-      if (session.userId === userId && id !== except) this.sessions.delete(id);
-    }
+  async destroyAllFor(userId: string, except?: string): Promise<void> {
+    await this.prisma.session.deleteMany({ where: { userId, ...(except ? { id: { not: except } } : {}) } });
   }
 
   matchesCsrf(session: Session, headerToken: unknown): boolean {

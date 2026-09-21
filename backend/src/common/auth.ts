@@ -74,13 +74,13 @@ export class AuthGuard implements CanActivate {
     private readonly store: StoreService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [context.getHandler(), context.getClass()]);
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<RequestContext>();
     const cookies = (request.cookies ?? {}) as Record<string, string | undefined>;
-    const session = this.sessions.get(cookies[SESSION_COOKIE], request.now);
+    const session = await this.sessions.get(cookies[SESSION_COOKIE], request.now);
     if (!session) throw new DomainError('UNAUTHENTICATED');
 
     // Every state-changing verb must echo the CSRF cookie in a header a cross-site form cannot set.
@@ -92,12 +92,12 @@ export class AuthGuard implements CanActivate {
 
     const user = this.store.findUser(session.userId);
     if (!user) {
-      this.sessions.destroy(session.id);
+      await this.sessions.destroy(session.id);
       throw new DomainError('UNAUTHENTICATED');
     }
     // A deactivated account loses access immediately, without waiting for its session to expire.
     if (!user.isActive) {
-      this.sessions.destroyAllFor(user.id);
+      await this.sessions.destroyAllFor(user.id);
       throw new DomainError('ACCOUNT_INACTIVE');
     }
 

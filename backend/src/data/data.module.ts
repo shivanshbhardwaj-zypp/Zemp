@@ -1,13 +1,11 @@
 import { Global, Module } from '@nestjs/common';
+import { PrismaService } from './prisma.service.js';
 import { StoreService } from './store.service.js';
 
-/**
- * The data layer, available everywhere. Phase C replaces `StoreService` with Prisma-backed
- * repositories here; no module that depends on it has to change.
- */
+/** The data layer, available everywhere: Postgres via Prisma, loaded once into StoreService. */
 @Global()
 @Module({
-  providers: [StoreService],
-  exports: [StoreService],
+  providers: [PrismaService, StoreService],
+  exports: [PrismaService, StoreService],
 })
 export class DataModule {}

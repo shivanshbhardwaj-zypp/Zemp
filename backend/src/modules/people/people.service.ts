@@ -186,16 +186,15 @@ export class PeopleService {
       createdAt: now,
       lastLoginAt: null,
     };
-    this.store.users.push(employee);
-    this.store.setPasswordHash(employee.id, await hashPassword(input.password));
-    this.store.memberships.push({
+    await this.store.createUser(employee, await hashPassword(input.password));
+    await this.store.createMembership({
       id: this.store.newId(),
       teamId: team.id,
       userId: employee.id,
       joinedAt: now,
       leftAt: null,
     });
-    this.store.addAudit({
+    await this.store.addAudit({
       actorId: viewer.id,
       action: 'USER_CREATED',
       resourceType: 'USER',
@@ -207,16 +206,19 @@ export class PeopleService {
     return this.employeeDetail(employee, viewer, now);
   }
 
-  private moveToTeam(person: SeedUser, teamId: string, actorId: string, client: ClientContext, now: Date): void {
+  private async moveToTeam(person: SeedUser, teamId: string, actorId: string, client: ClientContext, now: Date): Promise<void> {
     const from = this.store.currentTeam(person.id);
     if (from?.id === teamId) return;
     const team = this.store.findTeam(teamId);
     if (!team?.isActive) throw new FieldError('INVALID_TEAM', 'teamId', 'Choose an active team.');
     for (const membership of this.store.memberships) {
-      if (membership.userId === person.id && !membership.leftAt) membership.leftAt = now;
+      if (membership.userId === person.id && !membership.leftAt) {
+        membership.leftAt = now;
+        await this.store.saveMembership(membership);
+      }
     }
-    this.store.memberships.push({ id: this.store.newId(), teamId, userId: person.id, joinedAt: now, leftAt: null });
-    this.store.addAudit({
+    await this.store.createMembership({ id: this.store.newId(), teamId, userId: person.id, joinedAt: now, leftAt: null });
+    await this.store.addAudit({
       actorId,
       action: 'TEAM_MEMBER_MOVED',
       resourceType: 'USER',
@@ -227,24 +229,25 @@ export class PeopleService {
     });
   }
 
-  updateEmployee(
+  async updateEmployee(
     viewer: SeedUser,
     id: string,
     input: UpdateEmployeeInput,
     client: ClientContext,
     now: Date,
-  ): EmployeeDetail {
+  ): Promise<EmployeeDetail> {
     const person = this.store.loadPerson(viewer, id);
     if (!isTeamMemberRole(person.role)) throw new DomainError('USER_NOT_FOUND');
     this.assertUnique(input.email, input.employeeCode, person.id);
-    if (input.teamId) this.moveToTeam(person, input.teamId, viewer.id, client, now);
+    if (input.teamId) await this.moveToTeam(person, input.teamId, viewer.id, client, now);
 
     const fields = (['name', 'email', 'employeeCode', 'jobTitle'] as const).filter(
       (key) => input[key] !== undefined && input[key] !== person[key],
     );
     for (const key of fields) person[key] = input[key]!;
     if (fields.length) {
-      this.store.addAudit({
+      await this.store.saveUser(person);
+      await this.store.addAudit({
         actorId: viewer.id,
         action: 'USER_UPDATED',
         resourceType: 'USER',
@@ -258,7 +261,13 @@ export class PeopleService {
   }
 
   /** Promote a team member to Sub Admin, or return them to Employee. */
-  changeRole(viewer: SeedUser, id: string, input: ChangeRoleInput, client: ClientContext, now: Date): EmployeeDetail {
+  async changeRole(
+    viewer: SeedUser,
+    id: string,
+    input: ChangeRoleInput,
+    client: ClientContext,
+    now: Date,
+  ): Promise<EmployeeDetail> {
     const person = this.store.loadPerson(viewer, id);
     const team = this.store.currentTeam(person.id);
     const plan = planRoleChange({
@@ -274,9 +283,10 @@ export class PeopleService {
       teamName: team?.name,
     });
     person.role = plan.patch.role;
-    for (const notification of plan.notifications) this.store.addNotification(notification, null, now);
+    await this.store.saveUser(person);
+    for (const notification of plan.notifications) await this.store.addNotification(notification, null, now);
     for (const entry of plan.audits) {
-      this.store.addAudit({
+      await this.store.addAudit({
         actorId: viewer.id,
         action: entry.action,
         resourceType: 'USER',
@@ -318,7 +328,7 @@ export class PeopleService {
     );
   }
 
-  private assignTeams(admin: SeedUser, teamIds: string[], actorId: string, client: ClientContext, now: Date): void {
+  private async assignTeams(admin: SeedUser, teamIds: string[], actorId: string, client: ClientContext, now: Date): Promise<void> {
     if (teamIds.some((id) => !this.store.findTeam(id))) {
       throw new FieldError('INVALID_TEAM', 'teamIds', 'One of the selected teams no longer exists.');
     }
@@ -327,7 +337,8 @@ export class PeopleService {
       if (shouldOwn === (team.ownerId === admin.id)) continue;
       team.ownerId = shouldOwn ? admin.id : null;
       team.updatedAt = now;
-      this.store.addAudit({
+      await this.store.saveTeam(team);
+      await this.store.addAudit({
         actorId,
         action: 'TEAM_UPDATED',
         resourceType: 'TEAM',
@@ -353,10 +364,9 @@ export class PeopleService {
       createdAt: now,
       lastLoginAt: null,
     };
-    this.store.users.push(admin);
-    this.store.setPasswordHash(admin.id, await hashPassword(input.password));
-    this.assignTeams(admin, input.teamIds ?? [], viewer.id, client, now);
-    this.store.addAudit({
+    await this.store.createUser(admin, await hashPassword(input.password));
+    await this.assignTeams(admin, input.teamIds ?? [], viewer.id, client, now);
+    await this.store.addAudit({
       actorId: viewer.id,
       action: 'USER_CREATED',
       resourceType: 'USER',
@@ -368,18 +378,19 @@ export class PeopleService {
     return this.adminItem(admin, viewer, now);
   }
 
-  updateAdmin(viewer: SeedUser, id: string, input: UpdateAdminInput, client: ClientContext, now: Date): AdminListItem {
+  async updateAdmin(viewer: SeedUser, id: string, input: UpdateAdminInput, client: ClientContext, now: Date): Promise<AdminListItem> {
     const admin = this.store.findUser(id);
     if (!admin || admin.role !== 'ADMIN') throw new DomainError('USER_NOT_FOUND');
     this.assertUnique(input.email, input.employeeCode, admin.id);
-    if (input.teamIds) this.assignTeams(admin, input.teamIds, viewer.id, client, now);
+    if (input.teamIds) await this.assignTeams(admin, input.teamIds, viewer.id, client, now);
 
     const fields = (['name', 'email', 'employeeCode', 'jobTitle'] as const).filter(
       (key) => input[key] !== undefined && input[key] !== admin[key],
     );
     for (const key of fields) admin[key] = input[key]!;
     if (fields.length) {
-      this.store.addAudit({
+      await this.store.saveUser(admin);
+      await this.store.addAudit({
         actorId: viewer.id,
         action: 'USER_UPDATED',
         resourceType: 'USER',
@@ -394,14 +405,15 @@ export class PeopleService {
 
   // ── Account status and access ────────────────────────────────────────────
 
-  setActive(viewer: SeedUser, id: string, isActive: boolean, client: ClientContext, now: Date): EmployeeDetail {
+  async setActive(viewer: SeedUser, id: string, isActive: boolean, client: ClientContext, now: Date): Promise<EmployeeDetail> {
     if (viewer.role !== 'SUPER_ADMIN') throw new DomainError('FORBIDDEN');
     const person = this.store.findUser(id);
     if (!person || person.role === 'SUPER_ADMIN') throw new DomainError('USER_NOT_FOUND');
     if (person.id === viewer.id) throw new DomainError('CANNOT_CHANGE_OWN_ACCOUNT');
 
     person.isActive = isActive;
-    this.store.addAudit({
+    await this.store.saveUser(person);
+    await this.store.addAudit({
       actorId: viewer.id,
       action: isActive ? 'USER_REACTIVATED' : 'USER_DEACTIVATED',
       resourceType: 'USER',
@@ -413,12 +425,12 @@ export class PeopleService {
   }
 
   /** Issues a single-use reset link for someone else; the admin never sees their password. */
-  issuePasswordReset(viewer: SeedUser, id: string, client: ClientContext, now: Date): PasswordResetIssued {
+  async issuePasswordReset(viewer: SeedUser, id: string, client: ClientContext, now: Date): Promise<PasswordResetIssued> {
     if (viewer.role !== 'SUPER_ADMIN') throw new DomainError('FORBIDDEN');
     const person = this.store.findUser(id);
     if (!person || person.role === 'SUPER_ADMIN') throw new DomainError('USER_NOT_FOUND');
-    const token = this.auth.issueResetToken(person.id, now);
-    this.store.addAudit({
+    const token = await this.auth.issueResetToken(person.id, now);
+    await this.store.addAudit({
       actorId: viewer.id,
       action: 'PASSWORD_RESET_ISSUED',
       resourceType: 'USER',

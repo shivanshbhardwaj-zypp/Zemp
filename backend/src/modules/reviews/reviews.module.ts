@@ -67,7 +67,7 @@ export class ReviewsService {
       .sort((a, b) => Number(a.relationship === 'SUPER_ADMIN') - Number(b.relationship === 'SUPER_ADMIN'));
   }
 
-  submit(user: SeedUser, input: SelfReportInputDto, client: ClientContext, now: Date): TaskDetail {
+  async submit(user: SeedUser, input: SelfReportInputDto, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     // An unknown reviewer id must not read differently from one out of scope.
     const chosen = this.store.findUser(input.reviewerId);
@@ -95,8 +95,8 @@ export class ReviewsService {
       createdById: user.id,
       updatedById: user.id,
     };
-    this.store.tasks.push(task);
-    this.tasks.applyPlan(task, actor, { patch: {}, ...plan }, client, now);
+    await this.store.createTask(task);
+    await this.tasks.applyPlan(task, actor, { patch: {}, ...plan }, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
@@ -113,15 +113,15 @@ export class ReviewsService {
     );
   }
 
-  decide(user: SeedUser, id: string, input: ReviewDecisionInput, client: ClientContext, now: Date): TaskDetail {
+  async decide(user: SeedUser, id: string, input: ReviewDecisionInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planReviewDecision({ actor, task, decision: input.decision, note: input.note, now });
-    this.tasks.applyPlan(task, actor, plan, client, now);
+    await this.tasks.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 
-  resubmit(user: SeedUser, id: string, input: ResubmitSelfReportInput, client: ClientContext, now: Date): TaskDetail {
+  async resubmit(user: SeedUser, id: string, input: ResubmitSelfReportInput, client: ClientContext, now: Date): Promise<TaskDetail> {
     const actor = this.store.actorFor(user);
     const task = this.store.loadTask(actor, id);
     const plan = planResubmit({
@@ -135,7 +135,7 @@ export class ReviewsService {
         completedAt: input.completedAt ? new Date(input.completedAt) : undefined,
       },
     });
-    this.tasks.applyPlan(task, actor, plan, client, now);
+    await this.tasks.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
   }
 }
@@ -160,7 +160,7 @@ export class ReviewsController {
     @Body(zodPipe(selfReportSchema)) input: SelfReportInputDto,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.reviews.submit(user, input, client, now);
   }
 
@@ -173,7 +173,7 @@ export class ReviewsController {
     @Body(zodPipe(resubmitSelfReportSchema)) input: ResubmitSelfReportInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.reviews.resubmit(user, id, input, client, now);
   }
 
@@ -197,7 +197,7 @@ export class ReviewsController {
     @Body(zodPipe(reviewDecisionSchema)) input: ReviewDecisionInput,
     @ClientInfo() client: ClientContext,
     @Now() now: Date,
-  ): TaskDetail {
+  ): Promise<TaskDetail> {
     return this.reviews.decide(user, id, input, client, now);
   }
 }
