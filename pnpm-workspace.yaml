@@ -6,6 +6,7 @@ packages:
 # Install scripts run only where genuinely needed. unrs-resolver's native binary arrives as an
 # optional dependency, so its fallback postinstall is unnecessary.
 allowBuilds:
+  '@embedded-postgres/linux-x64': true
   '@embedded-postgres/windows-x64': true
   '@prisma/engines': true
   # Scarf's postinstall only reports install analytics; nothing depends on it.
