@@ -3,6 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   AssignableUsersQuery,
+  BulkCreateTaskInput,
   ChangeStatusInput,
   CreateCommentInput,
   CreateTaskInput,
@@ -70,6 +71,7 @@ function useWorkMutation<TVariables, TData>(mutationFn: (variables: TVariables) 
 }
 
 export const useCreateTask = () => useWorkMutation((input: CreateTaskInput) => tasksApi.create(input));
+export const useBulkCreateTask = () => useWorkMutation((input: BulkCreateTaskInput) => tasksApi.bulkCreate(input));
 export const useUpdateTask = (id: string) => useWorkMutation((input: UpdateTaskInput) => tasksApi.update(id, input));
 export const useUpdateProgress = (id: string) => useWorkMutation((progress: number) => tasksApi.updateProgress(id, progress));
 export const useChangeStatus = (id: string) => useWorkMutation((input: ChangeStatusInput) => tasksApi.changeStatus(id, input));

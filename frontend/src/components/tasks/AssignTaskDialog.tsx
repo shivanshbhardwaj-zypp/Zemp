@@ -15,7 +15,7 @@ import { Field } from '@/components/ui/Field';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
-import { useAssignableUsers, useCreateTask } from '@/hooks/useTasks';
+import { useAssignableUsers, useBulkCreateTask, useCreateTask } from '@/hooks/useTasks';
 import { useTeamOptions } from '@/hooks/useTeams';
 import { applyApiError, useLeaveGuard } from '@/lib/formErrors';
 import { useTimeZone, useUser } from '@/lib/session';
@@ -25,7 +25,7 @@ const formSchema = z
     title: createTaskSchema.shape.title,
     description: z.string().trim().max(5000),
     teamId: z.string(),
-    assigneeId: z.string().min(1, 'Choose who will do this work'),
+    assigneeId: z.string(),
     priority: z.enum(TASK_PRIORITIES),
     startAt: z.string(),
     dueAt: z.string().min(1, 'Choose a due date'),
@@ -52,9 +52,14 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
   const timeZone = useTimeZone();
   const router = useRouter();
   const create = useCreateTask();
+  const bulkCreate = useBulkCreateTask();
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [hasIncentive, setHasIncentive] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const toggleAssignee = (id: string) =>
+    setAssigneeIds((current) => (current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]));
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -71,6 +76,8 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
     reset();
     setFormError(null);
     setHasIncentive(false);
+    setBulkMode(false);
+    setAssigneeIds([]);
     onOpenChange(false);
   };
   const requestClose = () => (dirty ? setConfirmLeave(true) : close());
@@ -95,20 +102,33 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       setError('incentiveAmount', { message: 'Enter an incentive amount greater than 0' });
       return;
     }
+    if (bulkMode && assigneeIds.length === 0) {
+      setFormError('Choose at least one person to assign this task to.');
+      return;
+    }
+    if (!bulkMode && !values.assigneeId) {
+      setError('assigneeId', { message: 'Choose who will do this work' });
+      return;
+    }
+    const shared = {
+      title: values.title,
+      description: values.description || undefined,
+      teamId: values.teamId || undefined,
+      priority: values.priority,
+      startAt: values.startAt ? fromDateTimeInput(values.startAt, timeZone).toISOString() : undefined,
+      dueAt: dueAt.toISOString(),
+      incentiveAmount: hasIncentive ? incentiveAmount : undefined,
+    };
     try {
-      const task = await create.mutateAsync({
-        title: values.title,
-        description: values.description || undefined,
-        assigneeId: values.assigneeId,
-        teamId: values.teamId || undefined,
-        priority: values.priority,
-        startAt: values.startAt ? fromDateTimeInput(values.startAt, timeZone).toISOString() : undefined,
-        dueAt: dueAt.toISOString(),
-        incentiveAmount: hasIncentive ? incentiveAmount : undefined,
-      });
-      toast.success('Task assigned successfully.', {
-        action: { label: 'View', onClick: () => router.push(`/tasks/${task.id}`) },
-      });
+      if (bulkMode) {
+        const tasks = await bulkCreate.mutateAsync({ ...shared, assigneeIds });
+        toast.success(`Task assigned to ${tasks.length} ${tasks.length === 1 ? 'person' : 'people'}.`);
+      } else {
+        const task = await create.mutateAsync({ ...shared, assigneeId: values.assigneeId });
+        toast.success('Task assigned successfully.', {
+          action: { label: 'View', onClick: () => router.push(`/tasks/${task.id}`) },
+        });
+      }
       close();
     } catch (error) {
       setFormError(
@@ -147,13 +167,29 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
               {(control) => <Textarea {...control} {...register('description')} rows={3} />}
             </Field>
 
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={bulkMode}
+                onCheckedChange={(checked) => {
+                  setBulkMode(checked);
+                  setAssigneeIds([]);
+                  setValue('assigneeId', '', { shouldDirty: true });
+                }}
+                aria-label="Assign to multiple people"
+              />
+              <span className="text-sm font-medium text-ink">Assign to multiple people</span>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Team" error={formState.errors.teamId?.message}>
                 {(control) => (
                   <Select
                     {...control}
                     {...register('teamId', {
-                      onChange: () => setValue('assigneeId', '', { shouldDirty: true }),
+                      onChange: () => {
+                        setValue('assigneeId', '', { shouldDirty: true });
+                        setAssigneeIds([]);
+                      },
                     })}
                   >
                     {user.role === 'SUPER_ADMIN' && <option value="">Any team</option>}
@@ -166,38 +202,73 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
                   </Select>
                 )}
               </Field>
-              <Field
-                label="Assign to"
-                error={formState.errors.assigneeId?.message}
-                hint={assignees.isPending ? 'Loading people…' : people.length === 0 ? 'No one is available in this team.' : undefined}
-              >
-                {(control) => (
-                  <Select {...control} {...register('assigneeId')} disabled={assignees.isPending}>
-                    <option value="">Choose a person</option>
-                    {admins.length > 0 && (
-                      <optgroup label={`${ROLE_LABELS.ADMIN}s`}>
-                        {admins.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                            {p.ownedTeams.length ? ` — ${p.ownedTeams.map((t) => t.name).join(', ')}` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {employees.length > 0 && (
-                      <optgroup label={`${ROLE_LABELS.EMPLOYEE}s`}>
-                        {employees.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                            {p.team && !teamId ? ` — ${p.team.name}` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </Select>
-                )}
-              </Field>
+              {!bulkMode && (
+                <Field
+                  label="Assign to"
+                  error={formState.errors.assigneeId?.message}
+                  hint={assignees.isPending ? 'Loading people…' : people.length === 0 ? 'No one is available in this team.' : undefined}
+                >
+                  {(control) => (
+                    <Select {...control} {...register('assigneeId')} disabled={assignees.isPending}>
+                      <option value="">Choose a person</option>
+                      {admins.length > 0 && (
+                        <optgroup label={`${ROLE_LABELS.ADMIN}s`}>
+                          {admins.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                              {p.ownedTeams.length ? ` — ${p.ownedTeams.map((t) => t.name).join(', ')}` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {employees.length > 0 && (
+                        <optgroup label={`${ROLE_LABELS.EMPLOYEE}s`}>
+                          {employees.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                              {p.team && !teamId ? ` — ${p.team.name}` : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </Select>
+                  )}
+                </Field>
+              )}
             </div>
+
+            {bulkMode && (
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-ink">Assign to</span>
+                  <span className="text-meta text-ink-muted">{assigneeIds.length} selected</span>
+                </div>
+                {assignees.isPending ? (
+                  <p className="text-meta text-ink-muted">Loading people…</p>
+                ) : people.length === 0 ? (
+                  <p className="text-meta text-ink-muted">No one is available in this team.</p>
+                ) : (
+                  <ul className="grid max-h-64 gap-2 overflow-y-auto">
+                    {[...admins, ...employees].map((p) => (
+                      <li key={p.id}>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-md border border-border-subtle px-3.5 py-2.5 text-sm transition-colors hover:bg-surface-row has-checked:border-primary-muted has-checked:bg-primary-selected">
+                          <input
+                            type="checkbox"
+                            checked={assigneeIds.includes(p.id)}
+                            onChange={() => toggleAssignee(p.id)}
+                            className="size-4 accent-primary-strong"
+                          />
+                          <span className="flex-1 font-medium text-ink">{p.name}</span>
+                          <span className="text-meta text-ink-muted">
+                            {p.role === 'ADMIN' ? ROLE_LABELS.ADMIN : p.team?.name}
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Priority">
@@ -267,7 +338,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
                 Cancel
               </Button>
               <Button type="submit" loading={formState.isSubmitting}>
-                Assign Task
+                {bulkMode && assigneeIds.length > 1 ? `Assign to ${assigneeIds.length} people` : 'Assign Task'}
               </Button>
             </DialogFooter>
           </form>

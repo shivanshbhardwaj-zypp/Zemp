@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   assignableUsersQuerySchema,
+  bulkCreateTaskSchema,
   changeStatusSchema,
   createCommentSchema,
   createTaskSchema,
@@ -11,6 +12,7 @@ import {
   updateTaskSchema,
   type AssignableUser,
   type AssignableUsersQuery,
+  type BulkCreateTaskInput,
   type ChangeStatusInput,
   type CreateCommentInput,
   type CreateTaskInput,
@@ -69,6 +71,18 @@ export class TasksController {
     @Now() now: Date,
   ): Promise<TaskDetail> {
     return this.tasks.create(user, input, client, now);
+  }
+
+  @Post('bulk')
+  @RequirePermissions('tasks.create')
+  @ApiOperation({ summary: 'Assign the same task to several people at once' })
+  createBulk(
+    @CurrentUser() user: SeedUser,
+    @Body(zodPipe(bulkCreateTaskSchema)) input: BulkCreateTaskInput,
+    @ClientInfo() client: ClientContext,
+    @Now() now: Date,
+  ): Promise<TaskDetail[]> {
+    return this.tasks.createBulk(user, input, client, now);
   }
 
   @Get(':id')

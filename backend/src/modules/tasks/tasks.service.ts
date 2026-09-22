@@ -16,6 +16,7 @@ import {
   summarizeIncentives,
   type AssignableUser,
   type AssignableUsersQuery,
+  type BulkCreateTaskInput,
   type ChangeStatusInput,
   type CreateCommentInput,
   type CreateTaskInput,
@@ -188,6 +189,23 @@ export class TasksService {
     await this.store.createTask(task);
     await this.applyPlan(task, actor, { patch: {}, ...plan }, client, now);
     return this.store.taskDetail(task, actor, now);
+  }
+
+  /**
+   * The same task assigned to several people at once — one task record per assignee, created
+   * sequentially so the store never sees concurrent writes from a single request.
+   *
+   * ponytail: no transaction across the batch — a failure partway (e.g. one assignee out of
+   * scope) leaves the earlier assignees' tasks created. Acceptable for this org's size; the UI
+   * only offers assignees already in scope, so a mid-batch failure is not expected in practice.
+   */
+  async createBulk(user: SeedUser, input: BulkCreateTaskInput, client: ClientContext, now: Date): Promise<TaskDetail[]> {
+    const { assigneeIds, ...rest } = input;
+    const created: TaskDetail[] = [];
+    for (const assigneeId of assigneeIds) {
+      created.push(await this.create(user, { ...rest, assigneeId }, client, now));
+    }
+    return created;
   }
 
   get(user: SeedUser, id: string, now: Date): TaskDetail {

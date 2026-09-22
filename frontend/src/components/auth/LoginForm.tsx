@@ -2,8 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { ROLE_LABELS, loginSchema, type LoginInput } from '@zemp/shared';
-import { DEMO_PASSWORD, PEOPLE } from '@zemp/shared/seed';
+import { loginSchema, type LoginInput } from '@zemp/shared';
 import { CircleAlert, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -32,7 +31,6 @@ export function LoginForm() {
     register,
     handleSubmit,
     setError,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<z.input<typeof loginSchema>, unknown, LoginInput>({
     resolver: zodResolver(loginSchema),

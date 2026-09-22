@@ -102,6 +102,11 @@ export const createTaskSchema = z.object({
   incentiveAmount: incentiveAmountSchema.optional(),
 });
 
+/** Same task, assigned to several people at once — one task record per assignee. */
+export const bulkCreateTaskSchema = createTaskSchema.omit({ assigneeId: true }).extend({
+  assigneeIds: z.array(idSchema).min(1).max(50),
+});
+
 export const updateTaskSchema = z
   .object({
     title: text('Title', 3, 200).optional(),
@@ -335,6 +340,7 @@ export type ChangePasswordInput = z.output<typeof changePasswordSchema>;
 export type PasswordResetRequestInput = z.output<typeof passwordResetRequestSchema>;
 export type PasswordResetConfirmInput = z.output<typeof passwordResetConfirmSchema>;
 export type CreateTaskInput = z.output<typeof createTaskSchema>;
+export type BulkCreateTaskInput = z.output<typeof bulkCreateTaskSchema>;
 export type UpdateTaskInput = z.output<typeof updateTaskSchema>;
 export type ReassignTaskInput = z.output<typeof reassignTaskSchema>;
 export type SelfReportInputDto = z.output<typeof selfReportSchema>;
