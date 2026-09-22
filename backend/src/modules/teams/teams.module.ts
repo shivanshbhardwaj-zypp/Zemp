@@ -242,7 +242,10 @@ export class TeamsService {
       isActive: t.isActive,
       memberCount: this.store.teamMembers(t.id).length,
     });
-    const admins = this.store.users.filter((u) => u.role === 'ADMIN');
+    // Anyone who owns a team gets a branch here — including a Super Admin who also runs one
+    // directly, so their team isn't the one thing missing from the chart.
+    const ownerIds = new Set(this.store.teams.map((t) => t.ownerId).filter((id): id is string => id !== null));
+    const admins = this.store.users.filter((u) => ownerIds.has(u.id));
     return {
       superAdmins: this.store.users.filter((u) => u.role === 'SUPER_ADMIN').map((u) => this.store.userRef(u)),
       admins: admins

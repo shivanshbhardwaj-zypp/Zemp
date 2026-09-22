@@ -186,7 +186,9 @@ get('/organization/chart', ({ user }) => {
   if (user.role !== 'SUPER_ADMIN') throw new DomainError('FORBIDDEN');
   const store = db();
   const chartTeam = (t: SeedTeam): OrgChartTeam => ({ ...teamRef(t), isActive: t.isActive, memberCount: teamMembers(t.id).length });
-  const admins = store.users.filter((u) => u.role === 'ADMIN');
+  // Anyone who owns a team gets a branch — including a Super Admin who also runs one directly.
+  const ownerIds = new Set(store.teams.map((t) => t.ownerId).filter((id): id is string => id !== null));
+  const admins = store.users.filter((u) => ownerIds.has(u.id));
   return {
     superAdmins: store.users.filter((u) => u.role === 'SUPER_ADMIN').map(userRef),
     admins: admins
