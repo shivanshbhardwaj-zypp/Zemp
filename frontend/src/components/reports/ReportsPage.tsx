@@ -1,7 +1,7 @@
 'use client';
 
 import { addDays, dayKey, type PersonProgress } from '@zemp/shared';
-import { History, Users } from 'lucide-react';
+import { Download, History, Users } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ProgressListCard } from '@/components/dashboard/ProgressListCard';
@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { AccessDenied, EmptyState, ErrorState } from '@/components/shared/States';
 import { UserAvatar } from '@/components/ui/Avatar';
 import { RiskBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { ProgressBar, toneForRisk } from '@/components/ui/ProgressBar';
@@ -112,6 +113,14 @@ export function ReportsPage({ variant }: { variant: 'reports' | 'self' }) {
           ) : (
             'Daily progress and deadline risk'
           )
+        }
+        actions={
+          user.role === 'SUPER_ADMIN' ? (
+            <Button variant="secondary" onClick={() => window.open('/api/v1/export/organization', '_blank')}>
+              <Download className="size-4" aria-hidden />
+              Export to Excel
+            </Button>
+          ) : undefined
         }
       />
 

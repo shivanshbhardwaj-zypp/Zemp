@@ -1,8 +1,11 @@
-import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
+import { Controller, Get, Injectable, Module, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import ExcelJS from 'exceljs';
+import type { Response } from 'express';
 import {
   DAY_MS,
   DomainError,
+  ROLE_LABELS,
   activityFeedQuerySchema,
   addDays,
   byRiskThenName,
@@ -43,6 +46,7 @@ import { CurrentUser, Now, RequirePermissions } from '../../common/auth.js';
 import { zodPipe } from '../../common/http.js';
 import {
   StoreService,
+  type SeedMembership,
   type SeedSnapshot,
   type SeedTask,
   type SeedTeam,
@@ -97,6 +101,98 @@ const worstRisk = (risks: (RiskLevel | null)[]) => RISK_ORDER.find((r) => risks.
 @Injectable()
 export class ReportsService {
   constructor(private readonly store: StoreService) {}
+
+  /**
+   * The whole organization as a two-sheet workbook — People and Tasks — for whenever someone
+   * needs the data outside the app. Never includes a password in any form: only an argon2id hash
+   * is stored anywhere, and even that would be useless (and a needless risk) in a spreadsheet.
+   */
+  async organizationWorkbook(): Promise<ExcelJS.Buffer> {
+    const { users, teams, tasks, memberships } = this.store;
+    const teamById = new Map(teams.map((t) => [t.id, t]));
+    const userById = new Map(users.map((u) => [u.id, u]));
+    const teamOf = (userId: string) => {
+      const membership = memberships.find((m: SeedMembership) => m.userId === userId && !m.leftAt);
+      return membership ? teamById.get(membership.teamId) : undefined;
+    };
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'ZEMP';
+    workbook.created = new Date();
+
+    const people = workbook.addWorksheet('People');
+    people.columns = [
+      { header: 'Name', key: 'name', width: 24 },
+      { header: 'Employee Code', key: 'employeeCode', width: 16 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Access Level', key: 'role', width: 14 },
+      { header: 'Team', key: 'team', width: 16 },
+      { header: 'Reports To', key: 'reportsTo', width: 20 },
+      { header: 'Active', key: 'active', width: 9 },
+      { header: 'Tasks Assigned', key: 'tasksAssigned', width: 15 },
+      { header: 'Tasks Completed', key: 'tasksCompleted', width: 16 },
+      { header: 'Incentivized Tasks Completed', key: 'incentivizedCompleted', width: 27 },
+      { header: 'Created', key: 'createdAt', width: 18 },
+      { header: 'Last Login', key: 'lastLoginAt', width: 18 },
+    ];
+    people.getRow(1).font = { bold: true };
+
+    for (const user of users) {
+      const team = teamOf(user.id);
+      const reportsTo = team?.ownerId && team.ownerId !== user.id ? userById.get(team.ownerId)?.name : undefined;
+      const own = tasks.filter((t) => t.assigneeId === user.id);
+      people.addRow({
+        name: user.name,
+        employeeCode: user.employeeCode,
+        email: user.email,
+        role: ROLE_LABELS[user.role],
+        team: team?.name ?? '—',
+        reportsTo: reportsTo ?? '—',
+        active: user.isActive ? 'Yes' : 'No',
+        tasksAssigned: own.length,
+        tasksCompleted: own.filter((t) => t.status === 'COMPLETED').length,
+        incentivizedCompleted: own.filter((t) => t.status === 'COMPLETED' && t.incentiveAmount !== null).length,
+        createdAt: user.createdAt,
+        lastLoginAt: user.lastLoginAt ?? '—',
+      });
+    }
+
+    const taskSheet = workbook.addWorksheet('Tasks');
+    taskSheet.columns = [
+      { header: 'Title', key: 'title', width: 32 },
+      { header: 'Assignee', key: 'assignee', width: 22 },
+      { header: 'Assigned By', key: 'assignor', width: 22 },
+      { header: 'Team', key: 'team', width: 16 },
+      { header: 'Status', key: 'status', width: 14 },
+      { header: 'Priority', key: 'priority', width: 10 },
+      { header: 'Progress %', key: 'progress', width: 11 },
+      { header: 'Origin', key: 'origin', width: 14 },
+      { header: 'Due Date', key: 'dueAt', width: 18 },
+      { header: 'Completed At', key: 'completedAt', width: 18 },
+      { header: 'Incentive (₹)', key: 'incentiveAmount', width: 13 },
+      { header: 'Review Status', key: 'reviewStatus', width: 16 },
+    ];
+    taskSheet.getRow(1).font = { bold: true };
+
+    for (const task of tasks) {
+      taskSheet.addRow({
+        title: task.title,
+        assignee: userById.get(task.assigneeId)?.name ?? '—',
+        assignor: userById.get(task.assignorId)?.name ?? '—',
+        team: (task.teamId && teamById.get(task.teamId)?.name) ?? '—',
+        status: task.status,
+        priority: task.priority,
+        progress: task.progress,
+        origin: task.origin === 'SELF_REPORTED' ? 'Self-reported' : 'Assigned',
+        dueAt: task.dueAt,
+        completedAt: task.completedAt ?? '—',
+        incentiveAmount: task.incentiveAmount ?? '—',
+        reviewStatus: task.reviewStatus ?? '—',
+      });
+    }
+
+    return workbook.xlsx.writeBuffer();
+  }
 
   /**
    * Narrows every report to what the viewer may see, then to the requested team/admin/employee.
@@ -483,8 +579,24 @@ export class ActivityController {
   }
 }
 
+@ApiTags('reports')
+@Controller('export')
+export class ExportController {
+  constructor(private readonly reports: ReportsService) {}
+
+  @Get('organization')
+  @RequirePermissions('reports.organization')
+  @ApiOperation({ summary: 'Download the whole organization — people and tasks — as an Excel workbook' })
+  async organization(@Res() res: Response): Promise<void> {
+    const buffer = await this.reports.organizationWorkbook();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="zemp-organization-export.xlsx"');
+    res.send(Buffer.from(buffer));
+  }
+}
+
 @Module({
-  controllers: [DashboardController, ReportsController, ActivityController],
+  controllers: [DashboardController, ReportsController, ActivityController, ExportController],
   providers: [ReportsService],
 })
 export class ReportsModule {}
