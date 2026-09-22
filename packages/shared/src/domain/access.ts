@@ -95,11 +95,11 @@ export function canReviewTask(actor: Actor, task: ReviewScope): boolean {
   return isTeamManagerRole(actor.role) && task.reviewerId === actor.id;
 }
 
-/** A member may ask a Super Admin, or a manager of their team — never themselves. */
+/** A member may ask any active admin or Super Admin, org-wide — never themselves — so there's
+ * always someone to review work even if their own team's admin is unavailable. */
 export function canReviewFor(reviewer: ReviewerCandidate, employee: PersonScope): boolean {
   if (!reviewer.isActive || reviewer.id === employee.id) return false;
-  if (reviewer.role === 'SUPER_ADMIN') return true;
-  return isTeamManagerRole(reviewer.role) && ownsTeam(reviewer, employee.teamId);
+  return reviewer.role === 'SUPER_ADMIN' || isTeamManagerRole(reviewer.role);
 }
 
 export function canViewPerson(actor: Actor, person: PersonScope): boolean {

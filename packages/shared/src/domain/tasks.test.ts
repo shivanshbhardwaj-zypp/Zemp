@@ -276,11 +276,11 @@ describe('self-reported work', () => {
     expect(plan.audits[0]?.action).toBe('TASK_SELF_REPORTED');
   });
 
-  it('accepts a Super Admin as reviewer but refuses an admin from another team', () => {
+  it('accepts a Super Admin or any active admin as reviewer, org-wide, but refuses an inactive one', () => {
     expect(planSelfReport({ actor: alice, author, reviewer: superAdminReviewer, input, now }).task.reviewerId).toBe('john');
-    expect(errorCode(() => planSelfReport({ actor: alice, author, reviewer: otherAdmin, input, now }))).toBe(
-      'REVIEWER_OUT_OF_SCOPE',
-    );
+    // Any admin can be asked, not just one who owns the author's team — there's always someone
+    // available to review even if the author's own team admin is unavailable.
+    expect(planSelfReport({ actor: alice, author, reviewer: otherAdmin, input, now }).task.reviewerId).toBe('bruce');
     expect(
       errorCode(() => planSelfReport({ actor: alice, author, reviewer: { ...teamAdmin, isActive: false }, input, now })),
     ).toBe('REVIEWER_OUT_OF_SCOPE');
