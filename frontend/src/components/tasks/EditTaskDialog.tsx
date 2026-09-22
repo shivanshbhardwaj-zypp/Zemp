@@ -98,11 +98,11 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
       changes.dueAt = dueAt.toISOString();
     }
     const incentiveAmount = Number(values.incentiveAmount);
-    if (hasIncentive && (!values.incentiveAmount || !(incentiveAmount > 0))) {
+    if (hasIncentive && values.incentiveAmount && !(incentiveAmount > 0)) {
       setError('incentiveAmount', { message: 'Enter an incentive amount greater than 0' });
       return;
     }
-    const nextIncentive = hasIncentive ? incentiveAmount : null;
+    const nextIncentive = hasIncentive && values.incentiveAmount ? incentiveAmount : null;
     if (nextIncentive !== task.incentiveAmount) changes.incentiveAmount = nextIncentive;
     if (Object.keys(changes).length === 0) {
       onClose();
@@ -161,8 +161,8 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
         <span className="text-sm font-medium text-ink">This task has an incentive</span>
       </div>
       {hasIncentive && (
-        <Field label="Incentive amount (₹)" error={formState.errors.incentiveAmount?.message}>
-          {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} placeholder="e.g. 100" />}
+        <Field label="Incentive amount (₹)" hint="Optional" error={formState.errors.incentiveAmount?.message}>
+          {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} />}
         </Field>
       )}
       {formError && (

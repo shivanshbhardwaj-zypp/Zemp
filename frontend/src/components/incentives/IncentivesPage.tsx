@@ -25,15 +25,17 @@ export function IncentivesPage() {
   if (overview.error) return <ErrorState onRetry={() => overview.refetch()} className="min-h-[60dvh]" />;
   if (!overview.data) return <Skeleton className="h-96 w-full rounded-lg" />;
 
-  const { tasks, totalEarned, totalPending } = overview.data;
+  const { tasks } = overview.data;
+  const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
+  const pendingCount = tasks.length - completedCount;
 
   return (
     <>
       <PageHeader title="Incentives" description="Bonus pay for tasks your manager marked as incentivized." />
 
       <KpiGrid className="mb-6 sm:grid-cols-2 lg:grid-cols-2">
-        <KpiCard label="Earned" value={rupees(totalEarned)} footnote="From completed incentivized tasks" />
-        <KpiCard label="Pending" value={rupees(totalPending)} footnote="From open incentivized tasks — not yet earned" />
+        <KpiCard label="Completed" value={String(completedCount)} footnote="Incentivized tasks completed" />
+        <KpiCard label="Pending" value={String(pendingCount)} footnote="Incentivized tasks still open" />
       </KpiGrid>
 
       {tasks.length === 0 ? (

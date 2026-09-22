@@ -98,7 +98,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       return;
     }
     const incentiveAmount = Number(values.incentiveAmount);
-    if (hasIncentive && (!values.incentiveAmount || !(incentiveAmount > 0))) {
+    if (hasIncentive && values.incentiveAmount && !(incentiveAmount > 0)) {
       setError('incentiveAmount', { message: 'Enter an incentive amount greater than 0' });
       return;
     }
@@ -117,7 +117,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       priority: values.priority,
       startAt: values.startAt ? fromDateTimeInput(values.startAt, timeZone).toISOString() : undefined,
       dueAt: dueAt.toISOString(),
-      incentiveAmount: hasIncentive ? incentiveAmount : undefined,
+      incentiveAmount: hasIncentive && values.incentiveAmount ? incentiveAmount : undefined,
     };
     try {
       if (bulkMode) {
@@ -299,8 +299,8 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
               <span className="text-sm font-medium text-ink">This task has an incentive</span>
             </div>
             {hasIncentive && (
-              <Field label="Incentive amount (₹)" hint="Paid on top of salary when this task is completed." error={formState.errors.incentiveAmount?.message}>
-                {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} placeholder="e.g. 100" />}
+              <Field label="Incentive amount (₹)" hint="Optional — paid on top of salary when this task is completed." error={formState.errors.incentiveAmount?.message}>
+                {(control) => <Input {...control} {...register('incentiveAmount')} type="number" min={1} step={1} />}
               </Field>
             )}
 
