@@ -26,6 +26,8 @@ const envSchema = z.object({
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(10).max(10_000).default(300),
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(3).max(1_000).default(10),
   /** Unset in local dev: email sending is then a logged no-op rather than a startup failure. */
+  /** Preferred: send over HTTPS via Resend (no SMTP). The sender domain must be verified in Resend. */
+  RESEND_API_KEY: z.string().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
   SMTP_SECURE: z

@@ -28,6 +28,19 @@ export class EmailService {
   }
 
   send(to: string, subject: string, text: string): void {
+    if (this.config.RESEND_API_KEY) {
+      fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.config.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: this.config.SMTP_FROM, to, subject, text }),
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+          this.logger.log(`Emailed ${to}`);
+        })
+        .catch((error: unknown) => this.logger.error(`Failed to email ${to}: ${(error as Error).message}`));
+      return;
+    }
     if (!this.transporter) {
       if (!this.warnedNotConfigured) {
         this.logger.warn('SMTP_HOST is not set — emails are logged, not sent. See backend/.env.example.');
