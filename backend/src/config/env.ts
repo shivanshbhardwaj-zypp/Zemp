@@ -28,6 +28,8 @@ const envSchema = z.object({
   /** Unset in local dev: email sending is then a logged no-op rather than a startup failure. */
   /** Preferred: send over HTTPS via Resend (no SMTP). The sender domain must be verified in Resend. */
   RESEND_API_KEY: z.string().optional(),
+  /** Shared secret for the Apps Script deadline digest (GET /digest/deadlines). Unset = disabled. */
+  DIGEST_SECRET: z.string().min(16).optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65_535).default(587),
   SMTP_SECURE: z
