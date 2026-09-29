@@ -32,6 +32,28 @@ export class DeadlineRemindersService {
         reminder.taskId,
         now,
       );
+      // The admins answerable for the task hear about it too: whoever assigned it, and the owner
+      // of the team it belongs to — each once, and never the assignee a second time.
+      const task = this.store.findTask(reminder.taskId);
+      if (!task) continue;
+      const assignee = this.store.findUser(task.assigneeId)?.name ?? 'Someone';
+      const teamOwnerId = task.teamId ? this.store.findTeam(task.teamId)?.ownerId : null;
+      const admins = new Set([task.assignorId, teamOwnerId].filter((id): id is string => !!id && id !== task.assigneeId));
+      const overdue = reminder.type === 'TASK_OVERDUE';
+      for (const adminId of admins) {
+        await this.store.addNotification(
+          {
+            userId: adminId,
+            type: reminder.type,
+            title: overdue ? `${assignee} missed a deadline` : `${assignee}'s task is due within 24 hours`,
+            body: overdue
+              ? `"${task.title}", assigned to ${assignee}, is past its due date.`
+              : `"${task.title}", assigned to ${assignee}, is due soon.`,
+          },
+          task.id,
+          now,
+        );
+      }
     }
     if (reminders.length) this.logger.log(`Sent ${reminders.length} deadline reminder(s).`);
   }

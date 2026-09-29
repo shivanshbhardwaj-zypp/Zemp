@@ -34,7 +34,7 @@ const envSchema = z.object({
     .transform((value) => value === 'true'),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().default('ZEMP <notifications@zemp.local>'),
+  SMTP_FROM: z.string().default('ZEMP <no-reply@zemp.local>'),
 });
 
 export type AppConfig = z.infer<typeof envSchema> & { isProduction: boolean };
