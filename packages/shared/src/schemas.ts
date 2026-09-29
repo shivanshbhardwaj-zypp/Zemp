@@ -100,6 +100,7 @@ export const createTaskSchema = z.object({
   startAt: dateTimeSchema.optional(),
   dueAt: dateTimeSchema,
   incentiveAmount: incentiveAmountSchema.optional(),
+  repeatsDaily: z.boolean().optional(),
 });
 
 /** Same task, assigned to several people at once — one task record per assignee. */
@@ -115,6 +116,7 @@ export const updateTaskSchema = z
     startAt: dateTimeSchema.nullable().optional(),
     dueAt: dateTimeSchema.optional(),
     incentiveAmount: incentiveAmountSchema.nullable().optional(),
+    repeatsDaily: z.boolean().optional(),
   })
   .refine(hasAnyField, anyField);
 

@@ -109,6 +109,8 @@ describe('what a Sub Admin may do', () => {
       reviewedAt: null,
       reviewNote: null,
       evidenceUrl: null,
+      incentiveAmount: null,
+      repeatsDaily: false,
     };
     const now = new Date('2026-09-16T06:30:00Z');
     expect(errorCode(() => planTaskUpdate({ actor: sub, task: adminsTask, input: { title: 'Hijacked' }, assigneeRole: 'ADMIN', now }))).toBe(

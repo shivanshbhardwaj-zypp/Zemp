@@ -66,6 +66,7 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
   const update = useUpdateTask(task.id);
   const [formError, setFormError] = useState<string | null>(null);
   const [hasIncentive, setHasIncentive] = useState(task.incentiveAmount !== null);
+  const [repeatsDaily, setRepeatsDaily] = useState(task.repeatsDaily);
   const initial: FormValues = {
     title: task.title,
     description: task.description ?? '',
@@ -104,6 +105,7 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
     }
     const nextIncentive = hasIncentive && values.incentiveAmount ? incentiveAmount : null;
     if (nextIncentive !== task.incentiveAmount) changes.incentiveAmount = nextIncentive;
+    if (repeatsDaily !== task.repeatsDaily) changes.repeatsDaily = repeatsDaily;
     if (Object.keys(changes).length === 0) {
       onClose();
       return;
@@ -159,6 +161,10 @@ function EditTaskForm({ task, onClose }: { task: TaskDetail; onClose: () => void
           aria-label="This task has an incentive"
         />
         <span className="text-sm font-medium text-ink">This task has an incentive</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <Switch checked={repeatsDaily} onCheckedChange={setRepeatsDaily} aria-label="Repeat daily" />
+        <span className="text-sm font-medium text-ink">Repeat daily</span>
       </div>
       {hasIncentive && (
         <Field label="Incentive amount (₹)" hint="Optional" error={formState.errors.incentiveAmount?.message}>

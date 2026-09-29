@@ -175,6 +175,7 @@ export class TasksService {
         dueAt: new Date(input.dueAt),
         teamId: input.teamId ?? null,
         incentiveAmount: input.incentiveAmount ?? null,
+        repeatsDaily: input.repeatsDaily ?? false,
       },
     });
     const task: SeedTask = {
@@ -228,6 +229,7 @@ export class TasksService {
         startAt: input.startAt === undefined ? undefined : input.startAt ? new Date(input.startAt) : null,
         dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
         incentiveAmount: input.incentiveAmount,
+        repeatsDaily: input.repeatsDaily,
       },
     });
     await this.applyPlan(task, actor, plan, client, now);

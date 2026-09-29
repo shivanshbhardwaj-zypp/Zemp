@@ -47,6 +47,8 @@ const task = (over: Partial<TaskRecord> = {}): TaskRecord => ({
   reviewedAt: null,
   reviewNote: null,
   evidenceUrl: null,
+  incentiveAmount: null,
+  repeatsDaily: false,
   ...over,
 });
 

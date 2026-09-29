@@ -54,6 +54,11 @@ export interface TaskRecord {
   evidenceUrl: string | null;
   /** Set by whoever assigns/edits the task — a bonus in rupees for completing it. Null means none. */
   incentiveAmount: number | null;
+  /**
+   * A daily task: each day a fresh copy is assigned and this flag moves onto it, so the newest
+   * copy always carries the series — switch it off (or cancel that copy) to stop the repeats.
+   */
+  repeatsDaily: boolean;
 }
 
 export interface NamedActor extends Actor {
@@ -109,6 +114,7 @@ export interface TaskPatch {
   reviewNote?: string | null;
   evidenceUrl?: string | null;
   incentiveAmount?: number | null;
+  repeatsDaily?: boolean;
   /** Deadline reminders are re-armed when the due date moves. */
   resetDeadlineReminders?: boolean;
 }
@@ -259,6 +265,7 @@ export interface NewTaskInput {
   dueAt: Date;
   teamId?: string | null;
   incentiveAmount?: number | null;
+  repeatsDaily?: boolean;
 }
 
 export interface NewTaskPlan {
@@ -311,6 +318,7 @@ export function planCreateTask(args: {
       reviewNote: null,
       evidenceUrl: null,
       incentiveAmount: input.incentiveAmount ?? null,
+      repeatsDaily: input.repeatsDaily ?? false,
     },
     activities: [activity('CREATED'), activity('ASSIGNED', null, assignee.id)],
     notifications: plan.notifications,
@@ -437,6 +445,7 @@ export interface TaskEditInput {
   startAt?: Date | null;
   dueAt?: Date;
   incentiveAmount?: number | null;
+  repeatsDaily?: boolean;
 }
 
 export function planTaskUpdate(args: {
@@ -468,6 +477,10 @@ export function planTaskUpdate(args: {
   if (input.incentiveAmount !== undefined && input.incentiveAmount !== task.incentiveAmount) {
     plan.patch.incentiveAmount = input.incentiveAmount;
     changedFields.push('incentive');
+  }
+  if (input.repeatsDaily !== undefined && input.repeatsDaily !== task.repeatsDaily) {
+    plan.patch.repeatsDaily = input.repeatsDaily;
+    changedFields.push(input.repeatsDaily ? 'repeats daily' : 'stopped repeating daily');
   }
   if (changedFields.length) plan.activities.push(activity('UPDATED', null, changedFields.join(', ')));
 
@@ -596,6 +609,7 @@ export function planSelfReport(args: {
       reviewNote: null,
       evidenceUrl: input.evidenceUrl ?? null,
       incentiveAmount: null,
+      repeatsDaily: false,
     },
     activities: [activity('CREATED'), activity('SUBMITTED_FOR_REVIEW', null, reviewer.id)],
     notifications: plan.notifications,

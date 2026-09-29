@@ -57,6 +57,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [hasIncentive, setHasIncentive] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
+  const [repeatsDaily, setRepeatsDaily] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const toggleAssignee = (id: string) =>
     setAssigneeIds((current) => (current.includes(id) ? current.filter((existing) => existing !== id) : [...current, id]));
@@ -77,6 +78,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
     setFormError(null);
     setHasIncentive(false);
     setBulkMode(false);
+    setRepeatsDaily(false);
     setAssigneeIds([]);
     onOpenChange(false);
   };
@@ -118,6 +120,7 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
       startAt: values.startAt ? fromDateTimeInput(values.startAt, timeZone).toISOString() : undefined,
       dueAt: dueAt.toISOString(),
       incentiveAmount: hasIncentive && values.incentiveAmount ? incentiveAmount : undefined,
+      repeatsDaily: repeatsDaily || undefined,
     };
     try {
       if (bulkMode) {
@@ -297,6 +300,11 @@ export function AssignTaskDialog({ open, onOpenChange }: { open: boolean; onOpen
                 aria-label="This task has an incentive"
               />
               <span className="text-sm font-medium text-ink">This task has an incentive</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch checked={repeatsDaily} onCheckedChange={setRepeatsDaily} aria-label="Repeat daily" />
+              <span className="text-sm font-medium text-ink">Repeat daily</span>
+              <span className="text-meta text-ink-muted">A fresh copy is assigned every day at the same due time</span>
             </div>
             {hasIncentive && (
               <Field label="Incentive amount (₹)" hint="Optional — paid on top of salary when this task is completed." error={formState.errors.incentiveAmount?.message}>

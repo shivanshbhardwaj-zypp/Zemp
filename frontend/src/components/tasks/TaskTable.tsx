@@ -44,7 +44,7 @@ export function TaskTable({ tasks, sort, onSort, onOpen, selection, footer, clas
           >
             {t.title}
           </button>
-          <p className="truncate text-meta text-ink-muted">Assigned by {t.assignor.name}</p>
+          <p className="truncate text-meta text-ink-muted">Assigned by {t.assignor.name}{t.repeatsDaily && " · Repeats daily"}</p>
         </div>
       ),
     },

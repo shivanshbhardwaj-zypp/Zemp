@@ -72,6 +72,7 @@ export function toTaskSummary(args: {
     origin: task.origin,
     evidenceUrl: task.evidenceUrl,
     incentiveAmount: task.incentiveAmount,
+    repeatsDaily: task.repeatsDaily,
     review:
       task.reviewStatus === null
         ? null

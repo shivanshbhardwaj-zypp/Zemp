@@ -128,6 +128,8 @@ export interface TaskSummary {
   review: TaskReview | null;
   /** Set by whoever assigned/edited the task — a bonus in rupees for completing it. Null means none. */
   incentiveAmount: number | null;
+  /** Assigned afresh every day until switched off. */
+  repeatsDaily: boolean;
 }
 
 export interface TaskReview {
