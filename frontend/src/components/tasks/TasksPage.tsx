@@ -2,7 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS, listTasksQuerySchema, type TaskPriority, type TaskSummary } from '@zemp/shared';
-import { ClipboardPen, Plus, X } from 'lucide-react';
+import { ClipboardPen, ListChecks, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -14,6 +14,7 @@ import { parseSearchParams, useUrlParams } from '@/hooks/useUrlParams';
 import { tasksApi } from '@/lib/api/tasks';
 import { plural } from '@/lib/format';
 import { useCan, useUser } from '@/lib/session';
+import { AssignedByMeDialog } from './AssignedByMeDialog';
 import { AssignTaskDialog } from './AssignTaskDialog';
 import { TaskActionsProvider } from './TaskActions';
 import { LogWorkDialog } from '@/components/reviews/LogWorkDialog';
@@ -63,6 +64,12 @@ export function TasksPage() {
               </Button>
             )}
             {can('tasks.create') && (
+              <Button variant="secondary" onClick={() => setParams({ mine: 1 }, { resetPage: false })}>
+                <ListChecks />
+                Tasks assigned by you
+              </Button>
+            )}
+            {can('tasks.create') && (
               <Button onClick={() => setParams({ assign: 1 }, { resetPage: false })}>
                 <Plus />
                 Assign Task
@@ -106,6 +113,11 @@ export function TasksPage() {
       />
       <TaskCards className="md:hidden" tasks={tasks} onOpen={openTask} footer={pagination} />
       <TaskSheet taskId={params.get('task')} onClose={() => setParams({ task: null }, { resetPage: false })} />
+      <AssignedByMeDialog
+        open={params.get('mine') === '1'}
+        onOpenChange={(open) => setParams({ mine: open ? 1 : null }, { resetPage: false })}
+        onOpenTask={(task) => setParams({ mine: null, task: task.id }, { resetPage: false })}
+      />
       <AssignTaskDialog
         open={params.get('assign') === '1'}
         onOpenChange={(open) => setParams({ assign: open ? 1 : null }, { resetPage: false })}

@@ -22,6 +22,7 @@ export const tasksApi = {
   create: (input: CreateTaskInput) => api.post<TaskDetail>('/tasks', input),
   bulkCreate: (input: BulkCreateTaskInput) => api.post<TaskDetail[]>('/tasks/bulk', input),
   update: (id: string, input: UpdateTaskInput) => api.patch<TaskDetail>(`/tasks/${id}`, input),
+  remove: (id: string) => api.del<null>(`/tasks/${id}`),
   updateProgress: (id: string, progress: number) => api.patch<TaskDetail>(`/tasks/${id}/progress`, { progress }),
   changeStatus: (id: string, input: ChangeStatusInput) => api.patch<TaskDetail>(`/tasks/${id}/status`, input),
   reassign: (id: string, input: ReassignTaskInput) => api.patch<TaskDetail>(`/tasks/${id}/assignee`, input),

@@ -280,6 +280,9 @@ export function auditSummary(
       return `Changed the due date of ${task()}`;
     case 'TASK_CANCELLED':
       return `Cancelled ${task()}`;
+    case 'TASK_DELETED':
+      // The task row is gone, so the title comes from the audit metadata.
+      return `Deleted "${text('title') ?? 'a task'}"`;
     case 'TASK_SELF_REPORTED':
       return `Logged ${task()} for review by ${person(text('reviewerId'))}`;
     case 'TASK_REVIEW_APPROVED':

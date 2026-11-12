@@ -57,6 +57,7 @@ function register(method: string, path: string, handler: (ctx: never) => unknown
 export const get = (path: string, handler: (ctx: Context) => unknown) => register('GET', path, handler, false);
 export const post = (path: string, handler: (ctx: Context) => unknown) => register('POST', path, handler, false);
 export const patch = (path: string, handler: (ctx: Context) => unknown) => register('PATCH', path, handler, false);
+export const del = (path: string, handler: (ctx: Context) => unknown) => register('DELETE', path, handler, false);
 export const publicPost = (path: string, handler: (ctx: PublicContext) => unknown) =>
   register('POST', path, handler, true);
 

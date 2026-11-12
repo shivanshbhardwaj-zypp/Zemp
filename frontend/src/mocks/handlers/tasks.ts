@@ -21,6 +21,7 @@ import {
   reassignTaskSchema,
   startOfDay,
   summarizeIncentives,
+  taskPermissions,
   updateProgressSchema,
   updateTaskSchema,
   type AssignableUser,
@@ -49,7 +50,7 @@ import {
   visibleTasks,
   zone,
 } from '../db';
-import { Paged, get, paginate, parse, patch, post, requirePermission } from '../http';
+import { Paged, del, get, paginate, parse, patch, post, requirePermission } from '../http';
 
 export function loadTask(actor: NamedActor, id: string) {
   const task = findTask(id);
@@ -95,6 +96,7 @@ get('/tasks', ({ user, query, now }) => {
   const assigned = bounds(q.assignedFrom, q.assignedTo);
   const search = q.search?.toLowerCase();
   const assigneeId = q.assigneeId === 'me' ? user.id : q.assigneeId;
+  const assignorId = q.assignorId === 'me' ? user.id : q.assignorId;
   const adminTeamIds = q.adminId ? db().teams.filter((t) => t.ownerId === q.adminId).map((t) => t.id) : null;
 
   const items = visibleTasks(actor).filter(
@@ -104,6 +106,7 @@ get('/tasks', ({ user, query, now }) => {
       (!q.priority || q.priority.includes(t.priority)) &&
       (!q.teamId || t.teamId === q.teamId) &&
       (!assigneeId || t.assigneeId === assigneeId) &&
+      (!assignorId || t.assignorId === assignorId) &&
       (!adminTeamIds || (t.teamId !== null && adminTeamIds.includes(t.teamId))) &&
       (!due.from || t.dueAt >= due.from) &&
       (!due.to || t.dueAt < due.to) &&
@@ -277,4 +280,18 @@ post('/tasks/:id/comments', ({ req, user, params, body, now }) => {
 /** The viewer's own incentivized tasks — never anyone else's; there's no team or ID to spoof. */
 get('/incentives', ({ user }) => {
   return summarizeIncentives(db().tasks.filter((t) => t.assigneeId === user.id)) satisfies IncentiveOverview;
+});
+
+del('/tasks/:id', ({ req, user, params, now }) => {
+  requirePermission(user, 'tasks.delete');
+  const actor = actorFor(user);
+  const task = loadTask(actor, params.id!);
+  if (!taskPermissions(actor, task, assigneeRoleOf(task)).canDelete) throw new DomainError('FORBIDDEN');
+  const store = db();
+  store.tasks = store.tasks.filter((t) => t.id !== task.id);
+  store.activities = store.activities.filter((a) => a.taskId !== task.id);
+  store.comments = store.comments.filter((c) => c.taskId !== task.id);
+  for (const n of store.notifications) if (n.taskId === task.id) n.taskId = null;
+  addAudit(req, now, actor.id, 'TASK_DELETED', 'TASK', task.id, { title: task.title, status: task.status });
+  return null;
 });

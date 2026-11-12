@@ -195,6 +195,7 @@ export const listTasksQuerySchema = pageQuerySchema.extend({
   teamId: idSchema.optional(),
   assigneeId: z.union([idSchema, z.literal('me')]).optional(),
   adminId: idSchema.optional(),
+  assignorId: z.union([idSchema, z.literal('me')]).optional(),
   dueFrom: dateKeySchema.optional(),
   dueTo: dateKeySchema.optional(),
   assignedFrom: dateKeySchema.optional(),

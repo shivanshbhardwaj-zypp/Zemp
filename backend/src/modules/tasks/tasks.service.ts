@@ -14,6 +14,7 @@ import {
   planTaskUpdate,
   startOfDay,
   summarizeIncentives,
+  taskPermissions,
   type AssignableUser,
   type AssignableUsersQuery,
   type BulkCreateTaskInput,
@@ -91,6 +92,7 @@ export class TasksService {
     const assigned = bounds(query.assignedFrom, query.assignedTo);
     const search = query.search?.toLowerCase();
     const assigneeId = query.assigneeId === 'me' ? user.id : query.assigneeId;
+    const assignorId = query.assignorId === 'me' ? user.id : query.assignorId;
     const adminTeamIds = query.adminId
       ? this.store.teams.filter((t) => t.ownerId === query.adminId).map((t) => t.id)
       : null;
@@ -102,6 +104,7 @@ export class TasksService {
         (!query.priority || query.priority.includes(t.priority)) &&
         (!query.teamId || t.teamId === query.teamId) &&
         (!assigneeId || t.assigneeId === assigneeId) &&
+        (!assignorId || t.assignorId === assignorId) &&
         (!adminTeamIds || (t.teamId !== null && adminTeamIds.includes(t.teamId))) &&
         (!due.from || t.dueAt >= due.from) &&
         (!due.to || t.dueAt < due.to) &&
@@ -234,6 +237,23 @@ export class TasksService {
     });
     await this.applyPlan(task, actor, plan, client, now);
     return this.store.taskDetail(task, actor, now);
+  }
+
+  /** Permanent delete: same managers who may edit it; out-of-scope reads as not found. Audited with the title. */
+  async remove(user: SeedUser, id: string, client: ClientContext, now: Date): Promise<void> {
+    const actor = this.store.actorFor(user);
+    const task = this.store.loadTask(actor, id);
+    if (!taskPermissions(actor, task, this.store.assigneeRoleOf(task)).canDelete) throw new DomainError('FORBIDDEN');
+    await this.store.deleteTask(task.id);
+    await this.store.addAudit({
+      actorId: user.id,
+      action: 'TASK_DELETED',
+      resourceType: 'TASK',
+      resourceId: task.id,
+      at: now,
+      metadata: { title: task.title, assigneeId: task.assigneeId, status: task.status, repeatsDaily: task.repeatsDaily },
+      ...client,
+    });
   }
 
   /** The viewer's own incentivized tasks — never anyone else's; there's no team or ID to spoof. */

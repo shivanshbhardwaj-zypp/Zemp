@@ -72,6 +72,8 @@ export interface TaskPermissions {
   canComment: boolean;
   canCancel: boolean;
   canReopen: boolean;
+  /** Permanently remove the task (any status) — same managers who may edit it. */
+  canDelete: boolean;
   /** Decide on a self-reported submission still awaiting review. */
   canReview: boolean;
   /** The author may revise and send a returned submission back. */
@@ -196,6 +198,7 @@ export function taskPermissions(actor: Actor, task: TaskRecord, assigneeRole: Sy
     canComment: canViewTask(actor, task),
     canCancel: manager && open,
     canReopen: manager && task.status === 'COMPLETED',
+    canDelete: manager,
     canReview: task.reviewStatus === 'PENDING' && canReviewTask(actor, task),
     canResubmit: task.reviewStatus === 'CHANGES_REQUESTED' && task.assigneeId === actor.id,
   };

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   assignableUsersQuerySchema,
@@ -103,6 +103,19 @@ export class TasksController {
     @Now() now: Date,
   ): Promise<TaskDetail> {
     return this.tasks.update(user, id, input, client, now);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('tasks.delete')
+  @ApiOperation({ summary: 'Permanently delete a task within scope (audited)' })
+  async remove(
+    @CurrentUser() user: SeedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @ClientInfo() client: ClientContext,
+    @Now() now: Date,
+  ): Promise<null> {
+    await this.tasks.remove(user, id, client, now);
+    return null;
   }
 
   @Patch(':id/progress')

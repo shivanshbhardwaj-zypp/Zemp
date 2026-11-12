@@ -93,6 +93,13 @@ describe('access and transitions', () => {
     expect(taskPermissions(superAdmin, adminTask, 'ADMIN').canEdit).toBe(true);
   });
 
+  it('lets only the managing admin delete, whatever the status', () => {
+    expect(taskPermissions(rock, task(), 'EMPLOYEE').canDelete).toBe(true);
+    expect(taskPermissions(rock, task({ status: 'COMPLETED' }), 'EMPLOYEE').canDelete).toBe(true);
+    expect(taskPermissions(bruce, task(), 'EMPLOYEE').canDelete).toBe(false);
+    expect(taskPermissions(rock, task({ assigneeId: 'rock', assignorId: 'john' }), 'ADMIN').canDelete).toBe(false);
+  });
+
   it("hides other people's tasks behind not-found (IDOR)", () => {
     expect(errorCode(() => planProgressUpdate({ actor: bob, task: task(), progress: 50, assigneeRole: 'EMPLOYEE', now }))).toBe(
       'TASK_NOT_FOUND',

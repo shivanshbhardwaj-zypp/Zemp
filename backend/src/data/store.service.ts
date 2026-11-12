@@ -411,6 +411,18 @@ export class StoreService implements OnModuleInit {
     await this.prisma.task.update({ where: { id: task.id }, data: { ...task, id: undefined } });
   }
 
+  /** Activity and comments cascade in the DB; notifications keep their text but lose the dead link. */
+  async deleteTask(id: string): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.notification.updateMany({ where: { taskId: id }, data: { taskId: null } }),
+      this.prisma.task.delete({ where: { id } }),
+    ]);
+    this.data.tasks = this.data.tasks.filter((t) => t.id !== id);
+    this.data.activities = this.data.activities.filter((a) => a.taskId !== id);
+    this.data.comments = this.data.comments.filter((c) => c.taskId !== id);
+    for (const n of this.data.notifications) if (n.taskId === id) n.taskId = null;
+  }
+
   // ── Writes: activity, notifications, audit ──────────────────────────────────
 
   async addActivity(

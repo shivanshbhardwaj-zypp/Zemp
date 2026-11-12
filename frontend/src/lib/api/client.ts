@@ -96,4 +96,5 @@ export const api = {
   },
   post: async <T>(path: string, body: unknown = {}) => (await request<T>('POST', path, undefined, body)).data,
   patch: async <T>(path: string, body: unknown) => (await request<T>('PATCH', path, undefined, body)).data,
+  del: async <T>(path: string) => (await request<T>('DELETE', path)).data,
 };
