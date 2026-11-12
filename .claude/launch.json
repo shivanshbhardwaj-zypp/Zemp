@@ -7,6 +7,18 @@
       "runtimeArgs": ["--filter", "@zemp/frontend", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "zemp-db",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zemp/backend", "db:local"],
+      "port": 55432
+    },
+    {
+      "name": "zemp-backend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@zemp/backend", "dev"],
+      "port": 4000
     }
   ]
 }
