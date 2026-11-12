@@ -77,6 +77,8 @@ export class PeopleService {
         canEdit: manageable,
         canChangeStatus: manageable && user.id !== viewer.id,
         canResetPassword: manageable,
+        canDelete:
+          manageable && user.id !== viewer.id && !user.isActive && this.store.ownedTeams(user.id).length === 0,
         canDelegate:
           this.store.can(viewer, 'users.delegate') &&
           canDelegateRole(actor, {
@@ -422,6 +424,31 @@ export class PeopleService {
       ...client,
     });
     return this.employeeDetail(person, viewer, now);
+  }
+
+  /**
+   * Permanent delete for someone who has left. Must be deactivated first and own no teams. Their own
+   * tasks, comments and activity go with them; work they handed to others is kept and re-attributed
+   * to the Super Admin who deleted them. Audited with their name, since the row is gone.
+   */
+  async deleteUser(viewer: SeedUser, id: string, client: ClientContext, now: Date): Promise<void> {
+    if (viewer.role !== 'SUPER_ADMIN') throw new DomainError('FORBIDDEN');
+    const person = this.store.findUser(id);
+    if (!person || person.role === 'SUPER_ADMIN') throw new DomainError('USER_NOT_FOUND');
+    if (person.id === viewer.id) throw new DomainError('CANNOT_CHANGE_OWN_ACCOUNT');
+    if (person.isActive) throw new DomainError('USER_MUST_BE_INACTIVE');
+    if (this.store.ownedTeams(person.id).length) throw new DomainError('USER_OWNS_TEAMS');
+
+    await this.store.deleteUser(person.id, viewer.id);
+    await this.store.addAudit({
+      actorId: viewer.id,
+      action: 'USER_DELETED',
+      resourceType: 'USER',
+      resourceId: person.id,
+      at: now,
+      metadata: { name: person.name, email: person.email, employeeCode: person.employeeCode, role: person.role },
+      ...client,
+    });
   }
 
   /** Issues a single-use reset link for someone else; the admin never sees their password. */

@@ -82,6 +82,8 @@ function employeeDetail(u: SeedUser, viewer: SeedUser, now: Date): EmployeeDetai
       canEdit: manageable,
       canChangeStatus: manageable && u.id !== viewer.id,
       canResetPassword: manageable,
+      // shortcut: the mock never offers permanent delete; the real API does.
+      canDelete: false,
       // Appointing a Sub Admin needs the permission and scope over that person (access.ts).
       canDelegate:
         ROLE_PERMISSIONS[viewer.role].includes('users.delegate') &&

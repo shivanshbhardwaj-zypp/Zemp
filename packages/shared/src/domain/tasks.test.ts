@@ -100,6 +100,16 @@ describe('access and transitions', () => {
     expect(taskPermissions(rock, task({ assigneeId: 'rock', assignorId: 'john' }), 'ADMIN').canDelete).toBe(false);
   });
 
+  it('lets a manager stop a daily repeat even after the copy is completed, but nothing else', () => {
+    const done = task({ status: 'COMPLETED', repeatsDaily: true });
+    expect(taskPermissions(rock, done, 'EMPLOYEE').canStopRepeating).toBe(true);
+    expect(taskPermissions(bruce, done, 'EMPLOYEE').canStopRepeating).toBe(false);
+    const plan = planTaskUpdate({ actor: rock, task: done, input: { repeatsDaily: false }, assigneeRole: 'EMPLOYEE', now });
+    expect(plan.patch.repeatsDaily).toBe(false);
+    expect(errorCode(() => planTaskUpdate({ actor: rock, task: done, input: { title: 'Renamed task' }, assigneeRole: 'EMPLOYEE', now }))).toBe('TASK_NOT_EDITABLE');
+    expect(errorCode(() => planTaskUpdate({ actor: bruce, task: done, input: { repeatsDaily: false }, assigneeRole: 'EMPLOYEE', now }))).toBe('TASK_NOT_FOUND');
+  });
+
   it("hides other people's tasks behind not-found (IDOR)", () => {
     expect(errorCode(() => planProgressUpdate({ actor: bob, task: task(), progress: 50, assigneeRole: 'EMPLOYEE', now }))).toBe(
       'TASK_NOT_FOUND',

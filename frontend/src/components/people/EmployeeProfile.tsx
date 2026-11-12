@@ -1,8 +1,11 @@
 'use client';
 
 import { ROLE_LABELS } from '@zemp/shared';
-import { KeyRound, ListChecks, Pencil, SearchX, UserRoundCheck, UserRoundX } from 'lucide-react';
+import { KeyRound, ListChecks, Pencil, SearchX, Trash2, UserRoundCheck, UserRoundX } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useState } from 'react';
 import { RecentActivityCard } from '@/components/dashboard/ActivityCards';
 import { TaskRow } from '@/components/tasks/TaskRow';
@@ -15,7 +18,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { ProgressBar, toneForRisk } from '@/components/ui/ProgressBar';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useEmployee } from '@/hooks/usePeople';
+import { useDeleteAccount, useEmployee } from '@/hooks/usePeople';
 import { useTasks } from '@/hooks/useTasks';
 import { ApiError } from '@/lib/api/client';
 import { formatCount, formatDateTime, formatPercent, formatRelative } from '@/lib/format';
@@ -30,7 +33,9 @@ export function EmployeeProfile({ id }: { id: string }) {
   const timeZone = useTimeZone();
   const employee = useEmployee(id);
   const tasks = useTasks({ assigneeId: id, status: ['TODO', 'IN_PROGRESS', 'BLOCKED'], sort: 'dueAt', order: 'asc', page: 1, pageSize: 8 });
-  const [dialog, setDialog] = useState<'edit' | 'status' | 'reset' | null>(null);
+  const [dialog, setDialog] = useState<'edit' | 'status' | 'reset' | 'delete' | null>(null);
+  const router = useRouter();
+  const deleteAccount = useDeleteAccount();
 
   if (employee.error) {
     const unavailable = employee.error instanceof ApiError && [403, 404].includes(employee.error.status);
@@ -112,6 +117,12 @@ export function EmployeeProfile({ id }: { id: string }) {
               {e.isActive ? 'Deactivate' : 'Reactivate'}
             </Button>
           )}
+          {e.permissions.canDelete && (
+            <Button variant="ghost" size="sm" className="text-danger" onClick={() => setDialog('delete')}>
+              <Trash2 />
+              Delete permanently
+            </Button>
+          )}
         </div>
       </Card>
 
@@ -163,6 +174,24 @@ export function EmployeeProfile({ id }: { id: string }) {
       {dialog === 'edit' && <EmployeeFormDialog employee={e} onClose={() => setDialog(null)} />}
       {dialog === 'status' && <AccountStatusDialog account={e} onClose={() => setDialog(null)} />}
       {dialog === 'reset' && <PasswordResetDialog account={e} onClose={() => setDialog(null)} />}
+      <ConfirmDialog
+        open={dialog === 'delete'}
+        onOpenChange={(next) => !next && setDialog(null)}
+        title={`Delete ${e.name} permanently?`}
+        description="Their account, their tasks, comments and notifications are removed for good. Tasks they assigned to others are kept and credited to you. This can't be undone."
+        confirmLabel="Delete account"
+        destructive
+        loading={deleteAccount.isPending}
+        onConfirm={() =>
+          deleteAccount.mutate(e.id, {
+            onSuccess: () => {
+              toast.success(`${e.name} was deleted.`);
+              router.push('/employees');
+            },
+            onError: (error) => toast.error(error instanceof ApiError ? error.message : 'Something went wrong. Please try again.'),
+          })
+        }
+      />
     </>
   );
 }

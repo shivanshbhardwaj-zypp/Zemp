@@ -49,7 +49,9 @@ export function AssignedByMeDialog({
 
   const tasks = useTasks(
     {
-      assignorId: 'me',
+      // Daily view lists every repeating task in the viewer's scope (server-enforced), not only their own.
+      assignorId: dailyOnly ? undefined : 'me',
+      repeatsDaily: dailyOnly || undefined,
       search: search || undefined,
       status: STATUS_FILTERS[statusFilter].status,
       sort: 'dueAt',
@@ -60,8 +62,7 @@ export function AssignedByMeDialog({
     { enabled: open },
   );
   const deleteTask = useDeleteTask();
-  // shortcut: "Daily only" filters the loaded page client-side; add a server filter if lists outgrow one page.
-  const items = (tasks.data?.items ?? []).filter((t) => !dailyOnly || t.repeatsDaily);
+  const items = tasks.data?.items ?? [];
 
   const resetPage = <T,>(set: (v: T) => void) => (v: T) => {
     set(v);
@@ -97,7 +98,7 @@ export function AssignedByMeDialog({
               ))}
             </Select>
             <label className="flex items-center gap-2 text-sm text-ink-muted">
-              <Switch checked={dailyOnly} onCheckedChange={setDailyOnly} aria-label="Show daily repeating tasks only" />
+              <Switch checked={dailyOnly} onCheckedChange={resetPage(setDailyOnly)} aria-label="Show daily repeating tasks only" />
               Daily only
             </label>
           </div>
@@ -109,7 +110,7 @@ export function AssignedByMeDialog({
               <p className="p-6 text-center text-sm text-danger">These tasks couldn&apos;t be loaded. Please try again.</p>
             ) : items.length === 0 ? (
               <p className="p-6 text-center text-sm text-ink-muted">
-                {dailyOnly ? 'No daily repeating tasks match.' : 'No tasks you assigned match these filters.'}
+                {dailyOnly ? 'No daily repeating tasks in your scope match.' : 'No tasks you assigned match these filters.'}
               </p>
             ) : (
               <ul className="divide-y divide-line">
@@ -199,11 +200,11 @@ function AssignedTaskRow({ task, onOpen, onDelete }: { task: TaskSummary; onOpen
 
       <StatusBadge status={task.status} />
 
-      {p.canEdit && (
+      {(p.canEdit || p.canStopRepeating) && (
         <label className="flex items-center gap-2 text-xs text-ink-muted" title="Create a fresh copy of this task every day">
           <Switch
             checked={task.repeatsDaily}
-            disabled={savingRepeat}
+            disabled={savingRepeat || (!p.canEdit && !task.repeatsDaily)}
             onCheckedChange={setRepeat}
             aria-label={`Repeat "${task.title}" daily`}
           />

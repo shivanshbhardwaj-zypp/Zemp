@@ -262,6 +262,9 @@ export function auditSummary(
       return `Deactivated ${person(entry.resourceId)}`;
     case 'USER_REACTIVATED':
       return `Reactivated ${person(entry.resourceId)}`;
+    case 'USER_DELETED':
+      // The person is gone, so their name comes from the audit metadata.
+      return `Permanently deleted ${text('name') ?? 'an account'}`;
     case 'USER_ROLE_CHANGED':
       return text('to') === 'SUB_ADMIN'
         ? `Made ${person(entry.resourceId)} a Sub Admin of ${team(text('teamId'))}`

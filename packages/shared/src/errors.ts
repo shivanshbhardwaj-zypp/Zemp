@@ -31,6 +31,8 @@ export const ERROR_STATUS = {
   REVIEW_NOT_PENDING: 422,
   TEAM_HAS_ACTIVE_MEMBERS: 422,
   CANNOT_CHANGE_OWN_ACCOUNT: 422,
+  USER_MUST_BE_INACTIVE: 422,
+  USER_OWNS_TEAMS: 422,
   RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
 } as const;
@@ -69,6 +71,8 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   REVIEW_NOT_PENDING: 'This submission has already been reviewed.',
   TEAM_HAS_ACTIVE_MEMBERS: 'Move active members out of this team first.',
   CANNOT_CHANGE_OWN_ACCOUNT: 'You cannot change your own account this way.',
+  USER_MUST_BE_INACTIVE: 'Deactivate this account before deleting it.',
+  USER_OWNS_TEAMS: 'Hand their teams to another admin before deleting this account.',
   RATE_LIMITED: 'Too many attempts. Please wait a moment and try again.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
 };

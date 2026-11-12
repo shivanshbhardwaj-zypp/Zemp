@@ -74,6 +74,8 @@ export interface TaskPermissions {
   canReopen: boolean;
   /** Permanently remove the task (any status) — same managers who may edit it. */
   canDelete: boolean;
+  /** Turn a daily repeat off — allowed on any status, so a finished copy can still end the series. */
+  canStopRepeating: boolean;
   /** Decide on a self-reported submission still awaiting review. */
   canReview: boolean;
   /** The author may revise and send a returned submission back. */
@@ -199,6 +201,7 @@ export function taskPermissions(actor: Actor, task: TaskRecord, assigneeRole: Sy
     canCancel: manager && open,
     canReopen: manager && task.status === 'COMPLETED',
     canDelete: manager,
+    canStopRepeating: manager && task.repeatsDaily,
     canReview: task.reviewStatus === 'PENDING' && canReviewTask(actor, task),
     canResubmit: task.reviewStatus === 'CHANGES_REQUESTED' && task.assigneeId === actor.id,
   };
@@ -459,7 +462,14 @@ export function planTaskUpdate(args: {
   now: Date;
 }): TaskPlan {
   const { actor, task, input, now } = args;
-  assertManageable(actor, task, args.assigneeRole);
+  const onlyStopsRepeat =
+    input.repeatsDaily === false && Object.entries(input).every(([k, v]) => k === 'repeatsDaily' || v === undefined);
+  if (onlyStopsRepeat && !isOpenStatus(task.status)) {
+    assertVisible(actor, task);
+    if (!canManageTask(actor, task, args.assigneeRole)) throw new DomainError('FORBIDDEN');
+  } else {
+    assertManageable(actor, task, args.assigneeRole);
+  }
   const plan = emptyPlan();
   const changedFields: string[] = [];
 

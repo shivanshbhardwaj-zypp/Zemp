@@ -26,5 +26,7 @@ export const peopleApi = {
   changeRole: (id: string, input: ChangeRoleInput) => api.patch<EmployeeDetail>(`/employees/${id}/role`, input),
   deactivate: (id: string) => api.post<EmployeeDetail>(`/users/${id}/deactivate`),
   reactivate: (id: string) => api.post<EmployeeDetail>(`/users/${id}/reactivate`),
+  /** Permanent; the account must be deactivated first. */
+  remove: (id: string) => api.del<null>(`/users/${id}`),
   issuePasswordReset: (id: string) => api.post<PasswordResetIssued>(`/users/${id}/password-reset`),
 };

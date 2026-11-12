@@ -105,6 +105,7 @@ export class TasksService {
         (!query.teamId || t.teamId === query.teamId) &&
         (!assigneeId || t.assigneeId === assigneeId) &&
         (!assignorId || t.assignorId === assignorId) &&
+        (query.repeatsDaily === undefined || t.repeatsDaily === query.repeatsDaily) &&
         (!adminTeamIds || (t.teamId !== null && adminTeamIds.includes(t.teamId))) &&
         (!due.from || t.dueAt >= due.from) &&
         (!due.to || t.dueAt < due.to) &&

@@ -196,6 +196,10 @@ export const listTasksQuerySchema = pageQuerySchema.extend({
   assigneeId: z.union([idSchema, z.literal('me')]).optional(),
   adminId: idSchema.optional(),
   assignorId: z.union([idSchema, z.literal('me')]).optional(),
+  repeatsDaily: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
   dueFrom: dateKeySchema.optional(),
   dueTo: dateKeySchema.optional(),
   assignedFrom: dateKeySchema.optional(),

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Module, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Module, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   changeRoleSchema,
@@ -167,6 +167,19 @@ export class AccountsController {
     @Now() now: Date,
   ): Promise<EmployeeDetail> {
     return this.people.setActive(user, id, true, client, now);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('users.deactivate')
+  @ApiOperation({ summary: 'Permanently delete a deactivated account that owns no teams (Super Admin)' })
+  async remove(
+    @CurrentUser() user: SeedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @ClientInfo() client: ClientContext,
+    @Now() now: Date,
+  ): Promise<null> {
+    await this.people.deleteUser(user, id, client, now);
+    return null;
   }
 
   @Post(':id/password-reset')

@@ -252,6 +252,8 @@ export interface EmployeeDetail extends EmployeeListItem {
     canResetPassword: boolean;
     /** The viewer may make this person a Sub Admin of their team, or return them to Employee. */
     canDelegate: boolean;
+    /** Super Admin only, once the account is deactivated and owns no teams. */
+    canDelete: boolean;
   };
 }
 

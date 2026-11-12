@@ -55,4 +55,5 @@ export const useSetAccountActive = () =>
   usePeopleMutation(({ id, active }: { id: string; active: boolean }) =>
     active ? peopleApi.reactivate(id) : peopleApi.deactivate(id),
   );
+export const useDeleteAccount = () => usePeopleMutation((id: string) => peopleApi.remove(id));
 export const useIssuePasswordReset = () => useMutation({ mutationFn: (id: string) => peopleApi.issuePasswordReset(id) });

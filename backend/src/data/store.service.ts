@@ -423,6 +423,43 @@ export class StoreService implements OnModuleInit {
     for (const n of this.data.notifications) if (n.taskId === id) n.taskId = null;
   }
 
+  /**
+   * Removes a person and everything that only makes sense with them: their own tasks (activity and
+   * comments cascade), their comments/activity elsewhere, notifications, sessions, snapshots.
+   * Tasks they assigned/created/edited for others are kept and re-attributed to `heirId`.
+   */
+  async deleteUser(id: string, heirId: string): Promise<void> {
+    const ownTaskIds = this.data.tasks.filter((t) => t.assigneeId === id).map((t) => t.id);
+    await this.prisma.$transaction([
+      this.prisma.notification.updateMany({ where: { taskId: { in: ownTaskIds } }, data: { taskId: null } }),
+      this.prisma.task.deleteMany({ where: { assigneeId: id } }),
+      this.prisma.task.updateMany({ where: { assignorId: id }, data: { assignorId: heirId } }),
+      this.prisma.task.updateMany({ where: { createdById: id }, data: { createdById: heirId } }),
+      this.prisma.task.updateMany({ where: { updatedById: id }, data: { updatedById: heirId } }),
+      this.prisma.activity.deleteMany({ where: { actorId: id } }),
+      this.prisma.comment.deleteMany({ where: { authorId: id } }),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
+    const gone = new Set(ownTaskIds);
+    const d = this.data;
+    d.tasks = d.tasks.filter((t) => !gone.has(t.id));
+    for (const t of d.tasks) {
+      if (t.assignorId === id) t.assignorId = heirId;
+      if (t.createdById === id) t.createdById = heirId;
+      if (t.updatedById === id) t.updatedById = heirId;
+      if (t.reviewerId === id) t.reviewerId = null;
+    }
+    d.activities = d.activities.filter((a) => a.actorId !== id && !gone.has(a.taskId));
+    d.comments = d.comments.filter((c) => c.authorId !== id && !gone.has(c.taskId));
+    d.notifications = d.notifications.filter((n) => n.userId !== id);
+    for (const n of d.notifications) if (n.taskId && gone.has(n.taskId)) n.taskId = null;
+    d.snapshots = d.snapshots.filter((s) => s.userId !== id);
+    d.memberships = d.memberships.filter((m) => m.userId !== id);
+    for (const a of d.auditLogs) if (a.actorId === id) a.actorId = null;
+    d.users = d.users.filter((u) => u.id !== id);
+    this.passwords.delete(id);
+  }
+
   // ── Writes: activity, notifications, audit ──────────────────────────────────
 
   async addActivity(
