@@ -167,6 +167,7 @@ export class ReportsService {
       { header: 'Priority', key: 'priority', width: 10 },
       { header: 'Progress %', key: 'progress', width: 11 },
       { header: 'Origin', key: 'origin', width: 14 },
+      { header: 'Created At', key: 'createdAt', width: 18 },
       { header: 'Due Date', key: 'dueAt', width: 18 },
       { header: 'Completed At', key: 'completedAt', width: 18 },
       { header: 'Incentive (₹)', key: 'incentiveAmount', width: 13 },
@@ -184,11 +185,26 @@ export class ReportsService {
         priority: task.priority,
         progress: task.progress,
         origin: task.origin === 'SELF_REPORTED' ? 'Self-reported' : 'Assigned',
+        createdAt: task.createdAt,
         dueAt: task.dueAt,
         completedAt: task.completedAt ?? '—',
         incentiveAmount: task.incentiveAmount ?? '—',
         reviewStatus: task.reviewStatus ?? '—',
       });
+    }
+
+    // Every successful sign-in, from the audit log (Last Login on People only keeps the latest).
+    const logins = workbook.addWorksheet('Logins');
+    logins.columns = [
+      { header: 'Name', key: 'name', width: 24 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Signed In At', key: 'at', width: 20 },
+    ];
+    logins.getRow(1).font = { bold: true };
+    for (const entry of this.store.auditLogs) {
+      if (entry.action !== 'AUTH_LOGIN' || !entry.actorId) continue;
+      const user = userById.get(entry.actorId);
+      logins.addRow({ name: user?.name ?? '—', email: user?.email ?? '—', at: entry.createdAt });
     }
 
     return workbook.xlsx.writeBuffer();
