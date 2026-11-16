@@ -172,6 +172,11 @@ export class ReportsService {
       { header: 'Completed At', key: 'completedAt', width: 18 },
       { header: 'Incentive (₹)', key: 'incentiveAmount', width: 13 },
       { header: 'Review Status', key: 'reviewStatus', width: 16 },
+      { header: 'Description', key: 'description', width: 50 },
+      { header: 'Completion Note', key: 'completionNote', width: 40 },
+      { header: 'Evidence Link', key: 'evidenceUrl', width: 40 },
+      { header: 'Review Note', key: 'reviewNote', width: 30 },
+      { header: 'Task ID', key: 'id', width: 38 },
     ];
     taskSheet.getRow(1).font = { bold: true };
 
@@ -190,6 +195,11 @@ export class ReportsService {
         completedAt: task.completedAt ?? '—',
         incentiveAmount: task.incentiveAmount ?? '—',
         reviewStatus: task.reviewStatus ?? '—',
+        description: task.description ?? '',
+        completionNote: task.completionNote ?? '',
+        evidenceUrl: task.evidenceUrl ?? '',
+        reviewNote: task.reviewNote ?? '',
+        id: task.id,
       });
     }
 
@@ -205,6 +215,42 @@ export class ReportsService {
       if (entry.action !== 'AUTH_LOGIN' || !entry.actorId) continue;
       const user = userById.get(entry.actorId);
       logins.addRow({ name: user?.name ?? '—', email: user?.email ?? '—', at: entry.createdAt });
+    }
+
+    // Everything said and done on each task, joined back to the Tasks sheet by Task ID.
+    const comments = workbook.addWorksheet('Comments');
+    comments.columns = [
+      { header: 'Task ID', key: 'taskId', width: 38 },
+      { header: 'Author', key: 'author', width: 22 },
+      { header: 'Comment', key: 'body', width: 60 },
+      { header: 'At', key: 'at', width: 20 },
+    ];
+    comments.getRow(1).font = { bold: true };
+    for (const c of this.store.comments) {
+      comments.addRow({ taskId: c.taskId, author: userById.get(c.authorId)?.name ?? '—', body: c.body, at: c.createdAt });
+    }
+
+    const activity = workbook.addWorksheet('Activity');
+    activity.columns = [
+      { header: 'Task ID', key: 'taskId', width: 38 },
+      { header: 'By', key: 'actor', width: 22 },
+      { header: 'Type', key: 'type', width: 20 },
+      { header: 'From', key: 'from', width: 18 },
+      { header: 'To', key: 'to', width: 18 },
+      { header: 'Note', key: 'note', width: 40 },
+      { header: 'At', key: 'at', width: 20 },
+    ];
+    activity.getRow(1).font = { bold: true };
+    for (const a of this.store.activities) {
+      activity.addRow({
+        taskId: a.taskId,
+        actor: userById.get(a.actorId)?.name ?? '—',
+        type: a.type,
+        from: a.fromValue ?? '',
+        to: a.toValue ?? '',
+        note: a.note ?? '',
+        at: a.createdAt,
+      });
     }
 
     return workbook.xlsx.writeBuffer();
