@@ -1,4 +1,4 @@
-import { Controller, Get, Injectable, Module, Query, Res } from '@nestjs/common';
+import { Controller, Get, Injectable, Module, Param, ParseUUIDPipe, Query, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import ExcelJS from 'exceljs';
 import type { Response } from 'express';
@@ -11,6 +11,7 @@ import {
   byRiskThenName,
   canReviewTask,
   canViewTask,
+  canViewTeam,
   completionRate,
   countInDay,
   dailyReportQuerySchema,
@@ -52,6 +53,7 @@ import {
   type SeedTeam,
   type SeedUser,
 } from '../../data/store.service.js';
+import { buildTeamReport } from './team-report.js';
 
 interface Scope {
   info: ScopeInfo;
@@ -644,7 +646,10 @@ export class ActivityController {
 @ApiTags('reports')
 @Controller('export')
 export class ExportController {
-  constructor(private readonly reports: ReportsService) {}
+  constructor(
+    private readonly reports: ReportsService,
+    private readonly store: StoreService,
+  ) {}
 
   @Get('organization')
   @RequirePermissions('reports.organization')
@@ -653,6 +658,25 @@ export class ExportController {
     const buffer = await this.reports.organizationWorkbook();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="zemp-organization-export.xlsx"');
+    res.send(Buffer.from(buffer));
+  }
+
+  @Get('teams/:id')
+  @RequirePermissions('reports.team')
+  @ApiOperation({ summary: "Download a team's detailed work report for the last 30 days as an Excel workbook" })
+  async team(
+    @CurrentUser() user: SeedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Now() now: Date,
+    @Res() res: Response,
+  ): Promise<void> {
+    const team = this.store.findTeam(id);
+    // Out-of-scope teams read as missing, same as GET /teams/:id.
+    if (!team || !canViewTeam(this.store.actorFor(user), team.id)) throw new DomainError('TEAM_NOT_FOUND');
+    const buffer = await buildTeamReport(this.store, team, now);
+    const slug = team.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'team';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="zemp-${slug}-report-last-30-days.xlsx"`);
     res.send(Buffer.from(buffer));
   }
 }

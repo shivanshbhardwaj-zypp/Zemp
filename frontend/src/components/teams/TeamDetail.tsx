@@ -1,7 +1,7 @@
 'use client';
 
 import { ROLE_LABELS, type TeamMemberItem } from '@zemp/shared';
-import { ListChecks, Pencil, SearchX, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { Download, ListChecks, Pencil, SearchX, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { DelegateAction } from '@/components/people/DelegateAction';
@@ -18,12 +18,13 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useTeam, useTeamMembers } from '@/hooks/useTeams';
 import { ApiError } from '@/lib/api/client';
 import { formatCount, formatDate, plural } from '@/lib/format';
-import { useTimeZone, useUser } from '@/lib/session';
+import { useCan, useTimeZone, useUser } from '@/lib/session';
 import { AddMemberDialog, TeamFormDialog } from './TeamDialogs';
 
 /** Team page: scope, KPIs and members with their workload (Frontend.md §87, §175). */
 export function TeamDetail({ id }: { id: string }) {
   const user = useUser();
+  const can = useCan();
   const timeZone = useTimeZone();
   const team = useTeam(id);
   const members = useTeamMembers(id);
@@ -130,6 +131,15 @@ export function TeamDetail({ id }: { id: string }) {
               Team tasks
             </Link>
           </Button>
+          {can('reports.team') && (
+            <Button asChild variant="secondary">
+              {/* Same-origin download; the session cookie authenticates it. */}
+              <a href={`/api/v1/export/teams/${t.id}`} download title="Every task, link, note and login from the last 30 days">
+                <Download />
+                Download report
+              </a>
+            </Button>
+          )}
           {t.permissions.canManageMembers && (
             <Button variant="secondary" onClick={() => setDialog('add')}>
               <UserPlus />
