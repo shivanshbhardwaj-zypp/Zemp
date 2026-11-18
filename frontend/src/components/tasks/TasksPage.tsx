@@ -2,9 +2,10 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import { TASK_PRIORITIES, TASK_PRIORITY_LABELS, listTasksQuerySchema, type TaskPriority, type TaskSummary } from '@zemp/shared';
-import { ClipboardPen, ListChecks, Plus, X } from 'lucide-react';
+import { ClipboardPen, ListChecks, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Pagination } from '@/components/shared/Pagination';
 import { Button } from '@/components/ui/Button';
@@ -129,7 +130,23 @@ export function TasksPage() {
 /** Limited bulk editing (Frontend.md §81): only rows the viewer may edit are changed. */
 function BulkActionBar({ tasks, onClear }: { tasks: TaskSummary[]; onClear: () => void }) {
   const queryClient = useQueryClient();
+  const can = useCan();
   const [pending, setPending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deletable = can('tasks.delete') ? tasks.filter((t) => t.permissions.canDelete) : [];
+
+  const deleteSelected = async () => {
+    setPending(true);
+    const results = await Promise.allSettled(deletable.map((t) => tasksApi.remove(t.id)));
+    setPending(false);
+    setConfirmDelete(false);
+    await invalidateWorkData(queryClient);
+    const deleted = results.filter((r) => r.status === 'fulfilled').length;
+    const kept = tasks.length - deleted;
+    if (deleted) toast.success(`${plural(deleted, 'task')} deleted.`);
+    if (kept) toast.message(`${plural(kept, 'task')} not deleted`, { description: 'Outside your permissions, or the delete failed.' });
+    onClear();
+  };
 
   const changePriority = async (priority: TaskPriority) => {
     const editable = tasks.filter((t) => t.permissions.canEdit && t.priority !== priority);
@@ -165,10 +182,28 @@ function BulkActionBar({ tasks, onClear }: { tasks: TaskSummary[]; onClear: () =
           </option>
         ))}
       </Select>
+      {deletable.length > 0 && (
+        <Button variant="secondary" size="sm" className="text-danger" disabled={pending} onClick={() => setConfirmDelete(true)}>
+          <Trash2 />
+          Delete {deletable.length === tasks.length ? 'selected' : plural(deletable.length, 'task')}
+        </Button>
+      )}
       <Button variant="ghost" size="sm" className="ml-auto" onClick={onClear}>
         <X />
         Clear selection
       </Button>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={(next) => !next && !pending && setConfirmDelete(false)}
+        title={`Delete ${plural(deletable.length, 'task')} permanently?`}
+        description={`They'll be removed with their comments and history, and any daily repeat on them stops. This can't be undone.${
+          deletable.length < tasks.length ? ` ${plural(tasks.length - deletable.length, 'selected task')} you can't delete will be left alone.` : ''
+        }`}
+        confirmLabel={`Delete ${plural(deletable.length, 'task')}`}
+        destructive
+        loading={pending}
+        onConfirm={deleteSelected}
+      />
     </div>
   );
 }
